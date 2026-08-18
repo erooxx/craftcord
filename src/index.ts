@@ -53,6 +53,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         });
 
         const collector = message.createMessageComponentCollector({
+            componentType: ComponentType.Button,
             filter: (i) => i.user.id === interaction.user.id,
             time: 60_000,
             max: 1,
@@ -71,8 +72,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         };
 
         const allFoundMessages = {
-            de: "Alle Berufsrollen wurden gefunden.",
-            en: "All profession roles were found.",
+            de: (total: number) => `Alle ${total} Berufsrollen wurden gefunden, keine mussten neu erstellt werden.`,
+            en: (total: number) => `All ${total} profession roles were found, none needed to be created.`,
         };
 
         const checkingRolesMessages = {
@@ -86,13 +87,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
         };
 
         const rolesCreatedMessages = {
-            de: "Die fehlenden Rollen wurden erstellt.",
-            en: "The missing roles have been created.",
+            de: (createdCount: number, total: number) => `${createdCount} neue Rolle(n) erstellt. Insgesamt sind jetzt ${total} Berufsrollen eingerichtet.`,
+            en: (createdCount: number, total: number) => `${createdCount} new role(s) created. ${total} profession roles are now set up in total.`,
         };
 
         const rolesSkippedMessages = {
-            de: "Ok, es wurden keine neuen Rollen erstellt.",
-            en: "Ok, no new roles were created.",
+            de: (found: number, total: number) => `${found}/${total} Rollen gefunden, es wurden keine neuen Rollen erstellt.`,
+            en: (found: number, total: number) => `${found}/${total} roles found, no new roles were created.`,
         };
 
         const timedOutMessages = {
@@ -120,12 +121,39 @@ client.on(Events.InteractionCreate, async (interaction) => {
             en: (channelId: string) => `<#${channelId}> has been set as the crafting channel.`,
         };
 
+        const channelFoundMessages = {
+            de: (channelId: string) => `Es existiert bereits ein Channel <#${channelId}>, dieser wurde als Crafting-Channel übernommen.`,
+            en: (channelId: string) => `A channel <#${channelId}> already exists and has been set as the crafting channel.`,
+        };
+
         async function promptChannelSetup(
             currentInteraction: ButtonInteraction,
             locale: Locale,
             precedingText: string,
             isFirstResponse: boolean
         ) {
+            const guild = interaction.guild!;
+            const channels = await guild.channels.fetch();
+            const existingChannel = channels.find(
+                c => c !== null && c.type === ChannelType.GuildText && c.name.toLowerCase() === "crafting-orders"
+            );
+
+            if (existingChannel) {
+                saveCraftingChannel(guild.id, existingChannel.id);
+
+                const payload = {
+                    content: `${precedingText}\n${channelFoundMessages[locale](existingChannel.id)}`,
+                    components: [],
+                };
+
+                if (isFirstResponse) {
+                    await currentInteraction.update(payload);
+                } else {
+                    await currentInteraction.editReply(payload);
+                }
+                return;
+            }
+
             const channelRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
                 new ButtonBuilder()
                     .setCustomId("setup_channel_create")
@@ -149,6 +177,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             }
 
             const channelCollector = message.createMessageComponentCollector({
+                componentType: ComponentType.Button,
                 filter: (i) => i.user.id === interaction.user.id,
                 time: 60_000,
                 max: 1,
@@ -165,7 +194,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     saveCraftingChannel(interaction.guildId!, channel.id);
 
                     await channelChoiceInteraction.update({
-                        content: channelCreatedMessages[locale](channel.id),
+                        content: `${precedingText}\n${channelCreatedMessages[locale](channel.id)}`,
                         components: [],
                     });
                     return;
@@ -195,7 +224,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     saveCraftingChannel(interaction.guildId!, channelId);
 
                     await pickerInteraction.update({
-                        content: channelSelectedMessages[locale](channelId),
+                        content: `${precedingText}\n${channelSelectedMessages[locale](channelId)}`,
                         components: [],
                     });
                 });
@@ -233,7 +262,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await promptChannelSetup(
                     buttonInteraction,
                     locale,
-                    `${localeConfirmations[locale]}\n${allFoundMessages[locale]}`,
+                    `${localeConfirmations[locale]}\n${allFoundMessages[locale](catalog.length)}`,
                     false
                 );
                 return;
@@ -258,6 +287,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             });
 
             const confirmCollector = message.createMessageComponentCollector({
+                componentType: ComponentType.Button,
                 filter: (i) => i.user.id === interaction.user.id,
                 time: 60_000,
                 max: 1,
@@ -268,7 +298,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
                 if (!createRoles) {
                     saveGuildProfessionRoles(guild.id, Object.fromEntries(matched));
-                    await promptChannelSetup(confirmInteraction, locale, rolesSkippedMessages[locale], true);
+                    const skippedText = `${localeConfirmations[locale]}\n${rolesSkippedMessages[locale](matched.size, catalog.length)}`;
+                    await promptChannelSetup(confirmInteraction, locale, skippedText, true);
                     return;
                 }
 
@@ -282,7 +313,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
                 saveGuildProfessionRoles(guild.id, Object.fromEntries(allRoles));
 
-                await promptChannelSetup(confirmInteraction, locale, rolesCreatedMessages[locale], false);
+                const createdText = `${localeConfirmations[locale]}\n${rolesCreatedMessages[locale](created.size, allRoles.size)}`;
+                await promptChannelSetup(confirmInteraction, locale, createdText, false);
             });
 
             confirmCollector.on("end", (collected) => {
