@@ -1,10 +1,15 @@
-import { REST, Routes, SlashCommandBuilder } from "discord.js";
+import { REST, Routes, SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import "dotenv/config";
 
 const commands = [
     new SlashCommandBuilder()
         .setName("ping")
-        .setDescription("Testet, ob der Bot lebt")
+        .setDescription("is the bot alive?")
+        .toJSON(),
+    new SlashCommandBuilder()
+        .setName("setup")
+        .setDescription("Configures bot for this server")
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
         .toJSON(),
 ];
 
@@ -15,4 +20,4 @@ await rest.put(
     { body: commands }
 );
 
-console.log("Commands registriert.");
+console.log("Commands registered.");
