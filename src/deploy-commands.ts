@@ -4,7 +4,7 @@ import "dotenv/config";
 const commands = [
     new SlashCommandBuilder()
         .setName("ping")
-        .setDescription("is the bot alive?")
+        .setDescription("Is the bot alive?")
         .toJSON(),
     new SlashCommandBuilder()
         .setName("setup")
