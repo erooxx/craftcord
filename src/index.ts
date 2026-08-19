@@ -11,6 +11,7 @@ import {
     ComponentType,
     ButtonInteraction,
     ThreadAutoArchiveDuration,
+    TextChannel,
 } from "discord.js";
 import "dotenv/config";
 import {
@@ -28,6 +29,7 @@ import { matchProfessionRoles, createMissingRoles } from "./roleSync.js";
 import {
     buildCraftOrderEmbed,
     buildClaimCancelRow,
+    buildCraftingChannelInfoEmbed,
     handleClaimButton,
     handleCompleteButton,
     handleReleaseButton,
@@ -41,6 +43,13 @@ import {
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
 
 const recipeIndex = buildRecipeIndex(loadRecipeCatalog());
+
+async function finalizeCraftingChannel(channel: TextChannel, guildId: string, locale: Locale) {
+    saveCraftingChannel(guildId, channel.id);
+
+    const infoMessage = await channel.send({ embeds: [buildCraftingChannelInfoEmbed(locale)] });
+    await infoMessage.pin();
+}
 
 client.once(Events.ClientReady, (c) => {
     console.log(`Logged in as ${c.user.tag}`);
@@ -179,6 +188,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
             en: (channelId: string) => `A channel <#${channelId}> already exists and has been set as the crafting channel.`,
         };
 
+        const setupCompletedMessages = {
+            de: "Setup abgeschlossen",
+            en: "Setup completed",
+        };
+
+        const settingUpChannelMessages = {
+            de: "Channel wird eingerichtet, einen Moment bitte...",
+            en: "Setting up the channel, please give me a moment...",
+        };
+
         async function promptChannelSetup(
             currentInteraction: ButtonInteraction,
             locale: Locale,
@@ -191,19 +210,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 c => c !== null && c.type === ChannelType.GuildText && c.name.toLowerCase() === "crafting-orders"
             );
 
-            if (existingChannel) {
-                saveCraftingChannel(guild.id, existingChannel.id);
-
-                const payload = {
-                    content: `${precedingText}\n${channelFoundMessages[locale](existingChannel.id)}`,
-                    components: [],
-                };
-
+            if (existingChannel && existingChannel.type === ChannelType.GuildText) {
+                const placeholder = { content: settingUpChannelMessages[locale], components: [] };
                 if (isFirstResponse) {
-                    await currentInteraction.update(payload);
+                    await currentInteraction.update(placeholder);
                 } else {
-                    await currentInteraction.editReply(payload);
+                    await currentInteraction.editReply(placeholder);
                 }
+
+                await finalizeCraftingChannel(existingChannel, guild.id, locale);
+
+                await currentInteraction.editReply({
+                    content: `${precedingText}\n${channelFoundMessages[locale](existingChannel.id)}\n\n${setupCompletedMessages[locale]}`,
+                    components: [],
+                });
                 return;
             }
 
@@ -238,16 +258,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
             channelCollector.on("collect", async (channelChoiceInteraction) => {
                 if (channelChoiceInteraction.customId === "setup_channel_create") {
+                    await channelChoiceInteraction.update({
+                        content: settingUpChannelMessages[locale],
+                        components: [],
+                    });
+
                     const channel = await interaction.guild!.channels.create({
                         name: "crafting-orders",
                         type: ChannelType.GuildText,
                         reason: "Craftcord Setup",
                     });
 
-                    saveCraftingChannel(interaction.guildId!, channel.id);
+                    await finalizeCraftingChannel(channel, interaction.guildId!, locale);
 
-                    await channelChoiceInteraction.update({
-                        content: `${precedingText}\n${channelCreatedMessages[locale](channel.id)}`,
+                    await channelChoiceInteraction.editReply({
+                        content: `${precedingText}\n${channelCreatedMessages[locale](channel.id)}\n\n${setupCompletedMessages[locale]}`,
                         components: [],
                     });
                     return;
@@ -274,10 +299,19 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
                 pickerCollector.on("collect", async (pickerInteraction) => {
                     const channelId = pickerInteraction.values[0];
-                    saveCraftingChannel(interaction.guildId!, channelId);
 
                     await pickerInteraction.update({
-                        content: `${precedingText}\n${channelSelectedMessages[locale](channelId)}`,
+                        content: settingUpChannelMessages[locale],
+                        components: [],
+                    });
+
+                    const selectedChannel = await interaction.guild!.channels.fetch(channelId);
+                    if (selectedChannel && selectedChannel.type === ChannelType.GuildText) {
+                        await finalizeCraftingChannel(selectedChannel, interaction.guildId!, locale);
+                    }
+
+                    await pickerInteraction.editReply({
+                        content: `${precedingText}\n${channelSelectedMessages[locale](channelId)}\n\n${setupCompletedMessages[locale]}`,
                         components: [],
                     });
                 });

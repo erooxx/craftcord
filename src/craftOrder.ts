@@ -237,3 +237,40 @@ export async function handleCancelButton(interaction: ButtonInteraction) {
         await interaction.channel.delete("Craftcord order cancelled");
     }
 }
+
+const infoEmbedTitles = { de: "📜 So funktionieren Crafting-Anfragen", en: "📜 How Crafting Requests Work" };
+
+const infoEmbedDescriptions = {
+    de: "Nutze `/craft` in diesem Channel, um ein Item anzufragen. Wähle das Item per Autocomplete, optional Qualität (T1–T5, Standard ist die höchste) und Dringlichkeit (Standard ist Sofort).",
+    en: "Use `/craft` in this channel to request an item. Pick the item via autocomplete, optionally set a quality (T1–T5, defaults to the highest) and urgency (defaults to ASAP).",
+};
+
+const infoEmbedNextStepsLabels = { de: "Was danach passiert", en: "What happens next" };
+const infoEmbedNextStepsValues = {
+    de: "Ich erstelle einen privaten Thread nur für dich und alle mit der passenden Berufsrolle. Niemand sonst kann ihn sehen.",
+    en: "I'll create a private thread just for you and everyone with the matching profession role. Nobody else can see it.",
+};
+
+const infoEmbedCraftersLabels = { de: "Für Handwerker:innen", en: "For crafters" };
+const infoEmbedCraftersValues = {
+    de: "Klick auf **Übernehmen**, um die Anfrage anzunehmen — danach kannst nur du sie **Abschließen** oder **Zurückgeben**.",
+    en: "Click **Claim** to take the order — after that, only you can **Complete** or **Revoke** it.",
+};
+
+const infoEmbedRequestersLabels = { de: "Für Anfragende", en: "For requesters" };
+const infoEmbedRequestersValues = {
+    de: "Du kannst den Auftrag jederzeit über **Auftrag abbrechen** stornieren — das löscht den Thread sofort.",
+    en: "You can cancel the order at any time via **Cancel order** — this deletes the thread immediately.",
+};
+
+export function buildCraftingChannelInfoEmbed(locale: Locale): EmbedBuilder {
+    return new EmbedBuilder()
+        .setTitle(infoEmbedTitles[locale])
+        .setColor(0x5865f2)
+        .setDescription(infoEmbedDescriptions[locale])
+        .addFields(
+            { name: infoEmbedNextStepsLabels[locale], value: infoEmbedNextStepsValues[locale] },
+            { name: infoEmbedCraftersLabels[locale], value: infoEmbedCraftersValues[locale] },
+            { name: infoEmbedRequestersLabels[locale], value: infoEmbedRequestersValues[locale] },
+        );
+}
