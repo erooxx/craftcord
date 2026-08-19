@@ -24,6 +24,13 @@ export interface ProfessionSkillTierResponse {
     }[];
 }
 
+export interface MediaResponse {
+    assets: {
+        key: string;
+        value: string;
+    }[];
+}
+
 export interface RecipeResponse {
     id: number;
     name: Record<string, string>;

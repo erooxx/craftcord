@@ -1,9 +1,9 @@
 import "dotenv/config";
 import {BLIZZARD_API_HOST, BLIZZARD_NAMESPACE, BLIZZARD_TOKEN_URL} from "./constants";
-import {ProfessionIndexResponse, ProfessionSkillTierResponse, RecipeResponse} from "./types";
+import {ProfessionIndexResponse, ProfessionSkillTierResponse, RecipeResponse, MediaResponse} from "./types";
 import {ProfessionDetailResponse} from "./types";
 import {toLocalizedText} from "./localization";
-import {EXCLUDED_REAGENT_SLOT_TYPE_IDS} from "../reagentSlots";
+import {EXCLUDED_REAGENT_SLOT_NAMES} from "../reagentSlots";
 
 export async function getAccessToken(): Promise<string> {
     console.log("[Blizzard] Fetch access token...");
@@ -74,8 +74,14 @@ export async function getProfessionForSkillTier(professionId: number, skillTierI
     }
 }
 
+export async function getRecipeIconUrl(recipeId: number, token: string): Promise<string | undefined> {
+    const raw = await authenticatedGet<MediaResponse>(`/data/wow/media/recipe/${recipeId}`, token);
+    return raw.assets.find(asset => asset.key === "icon")?.value;
+}
+
 export async function getRecipeDetails(recipeId: number, token: string) {
     const raw = await authenticatedGet<RecipeResponse>(`/data/wow/recipe/${recipeId}`, token);
+    const iconUrl = await getRecipeIconUrl(recipeId, token);
 
     const fixedReagents = (raw.reagents ?? []).map(r => ({
         id: r.reagent.id,
@@ -84,7 +90,7 @@ export async function getRecipeDetails(recipeId: number, token: string) {
     }));
 
     const additionalReagents = (raw.modified_crafting_slots ?? [])
-        .filter(slot => !EXCLUDED_REAGENT_SLOT_TYPE_IDS.has(slot.slot_type.id))
+        .filter(slot => !EXCLUDED_REAGENT_SLOT_NAMES.has(slot.slot_type.name.en_US))
         .map(slot => ({
             id: slot.slot_type.id,
             name: toLocalizedText(slot.slot_type.name),
@@ -93,6 +99,7 @@ export async function getRecipeDetails(recipeId: number, token: string) {
     return {
         id: raw.id,
         name: toLocalizedText(raw.name),
+        iconUrl,
         reagents: fixedReagents,
         additionalReagents,
     };

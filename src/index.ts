@@ -10,19 +10,72 @@ import {
     ChannelType,
     ComponentType,
     ButtonInteraction,
+    ThreadAutoArchiveDuration,
 } from "discord.js";
 import "dotenv/config";
-import { saveGuildLocale, saveGuildProfessionRoles, saveCraftingChannel, Locale } from "./guildConfig.js";
+import {
+    saveGuildLocale,
+    saveGuildProfessionRoles,
+    saveCraftingChannel,
+    getCraftingChannel,
+    getGuildProfessionRoles,
+    getGuildLocale,
+    Locale,
+} from "./guildConfig.js";
 import { loadRecipeCatalog } from "./recipeCatalog.js";
+import { buildRecipeIndex } from "./recipeIndex.js";
 import { matchProfessionRoles, createMissingRoles } from "./roleSync.js";
+import {
+    buildCraftOrderEmbed,
+    buildClaimCancelRow,
+    handleClaimButton,
+    handleCompleteButton,
+    handleReleaseButton,
+    handleCancelButton,
+    CLAIM_BUTTON_ID,
+    COMPLETE_BUTTON_ID,
+    RELEASE_BUTTON_ID,
+    CANCEL_BUTTON_ID,
+} from "./craftOrder.js";
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
+
+const recipeIndex = buildRecipeIndex(loadRecipeCatalog());
 
 client.once(Events.ClientReady, (c) => {
     console.log(`Logged in as ${c.user.tag}`);
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+    if (interaction.isButton()) {
+        if (interaction.customId === CLAIM_BUTTON_ID) {
+            await handleClaimButton(interaction);
+        } else if (interaction.customId === COMPLETE_BUTTON_ID) {
+            await handleCompleteButton(interaction);
+        } else if (interaction.customId === RELEASE_BUTTON_ID) {
+            await handleReleaseButton(interaction);
+        } else if (interaction.customId === CANCEL_BUTTON_ID) {
+            await handleCancelButton(interaction);
+        }
+        return;
+    }
+
+    if (interaction.isAutocomplete()) {
+        if (interaction.commandName !== "craft") return;
+
+        const locale: Locale = (interaction.guildId && getGuildLocale(interaction.guildId)) || "en";
+        const focused = interaction.options.getFocused().toLowerCase();
+
+        const choices = recipeIndex
+            .filter(entry => entry.recipeName[locale].toLowerCase().includes(focused))
+            .sort((a, b) => a.recipeName[locale].localeCompare(b.recipeName[locale], locale))
+            .slice(0, 25)
+            .map(entry => ({ name: entry.recipeName[locale], value: String(entry.recipeId) }));
+
+        await interaction.respond(choices);
+        return;
+    }
+
     if (!interaction.isChatInputCommand()) return;
 
     if (interaction.commandName === "ping") {
@@ -329,6 +382,123 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 interaction.editReply({ content: "Timed out, please run /setup again.", components: [] });
             }
         });
+    }
+
+    if (interaction.commandName === "craft") {
+        const guildId = interaction.guildId;
+        if (!guildId || !interaction.guild) {
+            await interaction.reply({ content: "This command only works in a server.", flags: MessageFlags.Ephemeral });
+            return;
+        }
+
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+        const locale: Locale = getGuildLocale(guildId) ?? "en";
+
+        const craftingChannelId = getCraftingChannel(guildId);
+        if (!craftingChannelId) {
+            await interaction.editReply(
+                locale === "de"
+                    ? "Für diese Gilde wurde noch kein Crafting-Channel eingerichtet. Bitte zuerst /setup ausführen."
+                    : "No crafting channel has been set up for this server yet. Please run /setup first."
+            );
+            return;
+        }
+
+        if (interaction.channelId !== craftingChannelId) {
+            await interaction.editReply(
+                locale === "de"
+                    ? `Dieser Befehl funktioniert nur in <#${craftingChannelId}>.`
+                    : `This command only works in <#${craftingChannelId}>.`
+            );
+            return;
+        }
+
+        const recipeId = Number(interaction.options.getString("item", true));
+        const recipeEntry = recipeIndex.find(entry => entry.recipeId === recipeId);
+
+        if (!recipeEntry) {
+            await interaction.editReply(
+                locale === "de"
+                    ? "Dieses Item wurde nicht erkannt. Bitte wähle einen Vorschlag aus der Liste."
+                    : "That item wasn't recognized. Please pick a suggestion from the list."
+            );
+            return;
+        }
+
+        const quality = interaction.options.getInteger("quality") ?? 5;
+        const urgency = interaction.options.getString("urgency") ?? "asap";
+
+        const professionRoles = getGuildProfessionRoles(guildId);
+        const roleId = professionRoles?.[recipeEntry.professionId];
+
+        if (!roleId) {
+            await interaction.editReply(
+                locale === "de"
+                    ? "Für den zugehörigen Beruf ist keine Rolle eingerichtet. Bitte /setup erneut ausführen."
+                    : "No role is set up for the corresponding profession. Please run /setup again."
+            );
+            return;
+        }
+
+        const role = await interaction.guild.roles.fetch(roleId);
+        if (!role) {
+            await interaction.editReply(
+                locale === "de"
+                    ? "Die zugehörige Berufsrolle existiert nicht mehr. Bitte /setup erneut ausführen."
+                    : "The corresponding profession role no longer exists. Please run /setup again."
+            );
+            return;
+        }
+
+        const craftingChannel = await interaction.guild.channels.fetch(craftingChannelId);
+        if (!craftingChannel || craftingChannel.type !== ChannelType.GuildText) {
+            await interaction.editReply(
+                locale === "de"
+                    ? "Der Crafting-Channel ist nicht mehr verfügbar. Bitte /setup erneut ausführen."
+                    : "The crafting channel is no longer available. Please run /setup again."
+            );
+            return;
+        }
+
+        const itemName = recipeEntry.recipeName[locale];
+        const threadName = `❔ T${quality}: ${itemName}`.slice(0, 100);
+
+        const thread = await craftingChannel.threads.create({
+            name: threadName,
+            type: ChannelType.PrivateThread,
+            autoArchiveDuration: ThreadAutoArchiveDuration.OneDay,
+            reason: "Craftcord /craft request",
+        });
+
+        await interaction.guild.members.fetch();
+
+        const memberIds = new Set(role.members.keys());
+        memberIds.add(interaction.user.id);
+
+        for (const memberId of memberIds) {
+            await thread.members.add(memberId);
+        }
+
+        const orderEmbed = buildCraftOrderEmbed({
+            recipeEntry,
+            quality,
+            urgency,
+            requesterId: interaction.user.id,
+            roleId: role.id,
+            locale,
+        });
+
+        await thread.send({
+            embeds: [orderEmbed],
+            components: [buildClaimCancelRow(locale)],
+        });
+
+        await interaction.editReply(
+            locale === "de"
+                ? `Anfrage erstellt: <#${thread.id}>`
+                : `Request created: <#${thread.id}>`
+        );
     }
 });
 

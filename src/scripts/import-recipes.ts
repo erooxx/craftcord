@@ -1,5 +1,6 @@
 import { getAccessToken, getProfessionDetails, getProfessionForSkillTier, getProfessionsBasic, getRecipeDetails } from "../blizzard/client.js";
 import { RELEVANT_PROFESSION_IDS } from "../professions.js";
+import { isExcludedCategory } from "../excludedCategories.js";
 import { writeFileSync, mkdirSync } from "node:fs";
 
 function getCurrentSkillTier(skillTiers: { id: number; name: { de: string; en: string } }[]) {
@@ -19,6 +20,10 @@ for (const profession of relevantProfessions) {
 
     const categories = [];
     for (const category of tierDetails.categories) {
+        if (isExcludedCategory(category.name.en)) {
+            continue;
+        }
+
         const recipes = [];
         for (const recipe of category.recipes) {
             try {
