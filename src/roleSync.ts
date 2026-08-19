@@ -24,7 +24,16 @@ export async function matchProfessionRoles(
 
             const targetName = profession.name[locale];
             if (role.name !== targetName) {
-                await role.setName(targetName, "Craftcord Setup – locale changed");
+                // Renaming needs the bot's own role to sit above this role
+                // in the hierarchy — a guild that hasn't moved it up yet
+                // will 403 here. The role is already correctly matched by
+                // ID either way, so a failed rename is cosmetic and
+                // shouldn't fail the whole /setup flow.
+                try {
+                    await role.setName(targetName, "Craftcord Setup – locale changed");
+                } catch (error) {
+                    console.error(`Failed to rename role ${role.id} in guild ${guild.id}:`, error);
+                }
             }
         } else {
             missing.push(profession);
