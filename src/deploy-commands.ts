@@ -42,6 +42,11 @@ const commands = [
                 )
         )
         .toJSON(),
+    new SlashCommandBuilder()
+        .setName("postwelcome")
+        .setDescription("Posts the welcome message in #welcome (owner only)")
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+        .toJSON(),
 ];
 
 const rest = new REST().setToken(process.env.DISCORD_TOKEN!);
