@@ -52,7 +52,7 @@ export function buildWelcomeEmbed(guild: Guild): EmbedBuilder {
             },
             {
                 name: "🔗 Links",
-                value: `[GitHub](${LINKS.github}) • [Privacy Policy](${LINKS.privacyPolicy}) • [Terms of Service](${LINKS.termsOfService})`,
+                value: `[Get Craftcord](${LINKS.getCraftcord}) • [GitHub](${LINKS.github}) • [Privacy Policy](${LINKS.privacyPolicy}) • [Terms of Service](${LINKS.termsOfService})`,
             },
         );
 }
