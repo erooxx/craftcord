@@ -13,6 +13,7 @@ import type { Locale } from "./guildConfig.js";
 import type { RecipeIndexEntry } from "./recipeIndex.js";
 import { PROFESSION_COLORS } from "./professions.js";
 import { getGuildLocale } from "./guildConfig.js";
+import { text } from "./i18n/translations.js";
 
 export const CLAIM_BUTTON_ID = "craft_claim";
 export const COMPLETE_BUTTON_ID = "craft_complete";
@@ -26,47 +27,8 @@ const UNCLAIMED_VALUE = "—";
 
 const BLANK_FIELD = { name: "​", value: "​", inline: true };
 
-const requestedByLabels = { de: "Angefragt von", en: "Requested by" };
-const crafterLabels = { de: "Crafter", en: "Crafter" };
-const qualityLabels = { de: "Qualität", en: "Quality" };
-const urgencyLabels = { de: "Dringlichkeit", en: "Urgency" };
-const reagentsLabels = { de: "Reagenzien", en: "Reagents" };
-const professionLabels = { de: "Beruf", en: "Profession" };
-
-const urgencyValueLabels = {
-    de: { asap: "Sofort", whenever: "Wenn's passt" },
-    en: { asap: "ASAP", whenever: "Whenever it fits" },
-};
-
-const claimButtonLabels = { de: "Übernehmen", en: "Claim" };
-const completeButtonLabels = { de: "Abschließen", en: "Complete" };
-const releaseButtonLabels = { de: "Zurückgeben", en: "Revoke" };
-const cancelButtonLabels = { de: "Auftrag abbrechen", en: "Cancel order" };
-
-const cannotClaimOwnOrderMessages = {
-    de: "Du kannst deine eigene Anfrage nicht übernehmen.",
-    en: "You can't claim your own order.",
-};
-
-const onlyExecutorMessages = {
-    de: "Nur die ausführende Person kann diesen Auftrag abschließen.",
-    en: "Only the person who claimed this order can complete it.",
-};
-
-const onlyRequesterMessages = {
-    de: "Nur die anfragende Person kann diesen Auftrag abbrechen.",
-    en: "Only the requester can cancel this order.",
-};
-
-const onlyExecutorCanReleaseMessages = {
-    de: "Nur die ausführende Person kann diesen Auftrag zurückgeben.",
-    en: "Only the person who claimed this order can release it.",
-};
-
-const orderCompletedMessages = {
-    de: (executorId: string) => `Auftrag abgeschlossen von <@${executorId}>`,
-    en: (executorId: string) => `Order completed by <@${executorId}>`,
-};
+const order = text.craft.order;
+const info = text.craft.info;
 
 function formatReagents(recipeEntry: RecipeIndexEntry, locale: Locale): string | undefined {
     const lines = [
@@ -90,13 +52,13 @@ export function buildCraftOrderEmbed(params: {
         .setTitle(recipeEntry.recipeName[locale])
         .setColor(PROFESSION_COLORS[recipeEntry.professionId] ?? 0x5865f2)
         .addFields(
-            { name: `${REQUESTER_MARKER} ${requestedByLabels[locale]}`, value: `<@${requesterId}>`, inline: true },
-            { name: `${CRAFTER_MARKER} ${crafterLabels[locale]}`, value: UNCLAIMED_VALUE, inline: true },
+            { name: `${REQUESTER_MARKER} ${order.requestedByLabel[locale]}`, value: `<@${requesterId}>`, inline: true },
+            { name: `${CRAFTER_MARKER} ${order.crafterLabel[locale]}`, value: UNCLAIMED_VALUE, inline: true },
             BLANK_FIELD,
-            { name: qualityLabels[locale], value: `T${quality}`, inline: true },
-            { name: urgencyLabels[locale], value: urgencyValueLabels[locale][urgency as "asap" | "whenever"], inline: true },
+            { name: order.qualityLabel[locale], value: `T${quality}`, inline: true },
+            { name: order.urgencyLabel[locale], value: order.urgencyValues[locale][urgency as "asap" | "whenever"], inline: true },
             BLANK_FIELD,
-            { name: professionLabels[locale], value: `<@&${roleId}>`, inline: false },
+            { name: order.professionLabel[locale], value: `<@&${roleId}>`, inline: false },
         );
 
     if (recipeEntry.iconUrl) {
@@ -105,7 +67,7 @@ export function buildCraftOrderEmbed(params: {
 
     const reagentsText = formatReagents(recipeEntry, locale);
     if (reagentsText) {
-        embed.addFields({ name: reagentsLabels[locale], value: reagentsText });
+        embed.addFields({ name: order.reagentsLabel[locale], value: reagentsText });
     }
 
     return embed;
@@ -113,16 +75,16 @@ export function buildCraftOrderEmbed(params: {
 
 export function buildClaimCancelRow(locale: Locale): ActionRowBuilder<ButtonBuilder> {
     return new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(CLAIM_BUTTON_ID).setLabel(claimButtonLabels[locale]).setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(CANCEL_BUTTON_ID).setLabel(cancelButtonLabels[locale]).setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(CLAIM_BUTTON_ID).setLabel(order.claimButton[locale]).setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(CANCEL_BUTTON_ID).setLabel(order.cancelButton[locale]).setStyle(ButtonStyle.Danger),
     );
 }
 
 function buildCompleteReleaseCancelRow(locale: Locale): ActionRowBuilder<ButtonBuilder> {
     return new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(COMPLETE_BUTTON_ID).setLabel(completeButtonLabels[locale]).setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId(RELEASE_BUTTON_ID).setLabel(releaseButtonLabels[locale]).setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(CANCEL_BUTTON_ID).setLabel(cancelButtonLabels[locale]).setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(COMPLETE_BUTTON_ID).setLabel(order.completeButton[locale]).setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(RELEASE_BUTTON_ID).setLabel(order.releaseButton[locale]).setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(CANCEL_BUTTON_ID).setLabel(order.cancelButton[locale]).setStyle(ButtonStyle.Danger),
     );
 }
 
@@ -156,7 +118,7 @@ export async function handleClaimButton(interaction: ButtonInteraction) {
     const requesterId = extractUserId(embedData, REQUESTER_MARKER);
 
     if (interaction.user.id === requesterId) {
-        await interaction.reply({ content: cannotClaimOwnOrderMessages[locale], flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: order.cannotClaimOwn[locale], flags: MessageFlags.Ephemeral });
         return;
     }
 
@@ -180,7 +142,7 @@ export async function handleReleaseButton(interaction: ButtonInteraction) {
     const executorId = extractUserId(embedData, CRAFTER_MARKER);
 
     if (interaction.user.id !== executorId) {
-        await interaction.reply({ content: onlyExecutorCanReleaseMessages[locale], flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: order.onlyExecutorCanRelease[locale], flags: MessageFlags.Ephemeral });
         return;
     }
 
@@ -204,7 +166,7 @@ export async function handleCompleteButton(interaction: ButtonInteraction) {
     const executorId = extractUserId(embedData, CRAFTER_MARKER);
 
     if (interaction.user.id !== executorId) {
-        await interaction.reply({ content: onlyExecutorMessages[locale], flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: order.onlyExecutorCanComplete[locale], flags: MessageFlags.Ephemeral });
         return;
     }
 
@@ -214,7 +176,7 @@ export async function handleCompleteButton(interaction: ButtonInteraction) {
         const thread = interaction.channel;
         await thread.setLocked(true);
         await thread.setAutoArchiveDuration(ThreadAutoArchiveDuration.OneHour);
-        await thread.send(orderCompletedMessages[locale](interaction.user.id));
+        await thread.send(order.completedBy[locale](interaction.user.id));
         await renameThreadIcon(thread, "✅");
     }
 }
@@ -227,7 +189,7 @@ export async function handleCancelButton(interaction: ButtonInteraction) {
     const requesterId = extractUserId(embedData, REQUESTER_MARKER);
 
     if (interaction.user.id !== requesterId) {
-        await interaction.reply({ content: onlyRequesterMessages[locale], flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: order.onlyRequesterCanCancel[locale], flags: MessageFlags.Ephemeral });
         return;
     }
 
@@ -238,39 +200,14 @@ export async function handleCancelButton(interaction: ButtonInteraction) {
     }
 }
 
-const infoEmbedTitles = { de: "📜 So funktionieren Crafting-Anfragen", en: "📜 How Crafting Requests Work" };
-
-const infoEmbedDescriptions = {
-    de: "Nutze `/craft` in diesem Channel, um ein Item anzufragen. Wähle das Item per Autocomplete, optional Qualität (T1–T5, Standard ist die höchste) und Dringlichkeit (Standard ist Sofort).",
-    en: "Use `/craft` in this channel to request an item. Pick the item via autocomplete, optionally set a quality (T1–T5, defaults to the highest) and urgency (defaults to ASAP).",
-};
-
-const infoEmbedNextStepsLabels = { de: "Was danach passiert", en: "What happens next" };
-const infoEmbedNextStepsValues = {
-    de: "Ich erstelle einen privaten Thread nur für dich und alle mit der passenden Berufsrolle. Niemand sonst kann ihn sehen.",
-    en: "I'll create a private thread just for you and everyone with the matching profession role. Nobody else can see it.",
-};
-
-const infoEmbedCraftersLabels = { de: "Für Handwerker:innen", en: "For crafters" };
-const infoEmbedCraftersValues = {
-    de: "Klick auf **Übernehmen**, um die Anfrage anzunehmen — danach kannst nur du sie **Abschließen** oder **Zurückgeben**.",
-    en: "Click **Claim** to take the order — after that, only you can **Complete** or **Revoke** it.",
-};
-
-const infoEmbedRequestersLabels = { de: "Für Anfragende", en: "For requesters" };
-const infoEmbedRequestersValues = {
-    de: "Du kannst den Auftrag jederzeit über **Auftrag abbrechen** stornieren — das löscht den Thread sofort.",
-    en: "You can cancel the order at any time via **Cancel order** — this deletes the thread immediately.",
-};
-
 export function buildCraftingChannelInfoEmbed(locale: Locale): EmbedBuilder {
     return new EmbedBuilder()
-        .setTitle(infoEmbedTitles[locale])
+        .setTitle(info.title[locale])
         .setColor(0x5865f2)
-        .setDescription(infoEmbedDescriptions[locale])
+        .setDescription(info.description[locale])
         .addFields(
-            { name: infoEmbedNextStepsLabels[locale], value: infoEmbedNextStepsValues[locale] },
-            { name: infoEmbedCraftersLabels[locale], value: infoEmbedCraftersValues[locale] },
-            { name: infoEmbedRequestersLabels[locale], value: infoEmbedRequestersValues[locale] },
+            { name: info.nextStepsLabel[locale], value: info.nextStepsValue[locale] },
+            { name: info.craftersLabel[locale], value: info.craftersValue[locale] },
+            { name: info.requestersLabel[locale], value: info.requestersValue[locale] },
         );
 }

@@ -23,6 +23,8 @@ import {
     getGuildLocale,
     Locale,
 } from "./guildConfig.js";
+import { SUPPORTED_LOCALES } from "./i18n/locales.js";
+import { text } from "./i18n/translations.js";
 import { loadRecipeCatalog } from "./recipeCatalog.js";
 import { buildRecipeIndex } from "./recipeIndex.js";
 import { matchProfessionRoles, createMissingRoles } from "./roleSync.js";
@@ -94,12 +96,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (interaction.commandName === "postwelcome") {
         if (interaction.user.id !== process.env.OWNER_ID) {
-            await interaction.reply({ content: "This command is restricted.", flags: MessageFlags.Ephemeral });
+            await interaction.reply({ content: text.postwelcome.restricted, flags: MessageFlags.Ephemeral });
             return;
         }
 
         if (!interaction.guild) {
-            await interaction.reply({ content: "This command only works in a server.", flags: MessageFlags.Ephemeral });
+            await interaction.reply({ content: text.common.guildOnly, flags: MessageFlags.Ephemeral });
             return;
         }
 
@@ -113,7 +115,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         if (welcomeChannel && welcomeChannel.type === ChannelType.GuildText) {
             await welcomeChannel.send({ embeds: [buildWelcomeEmbed(guild)], files: [buildLogoAttachment()] });
-            await interaction.editReply({ content: `Posted in ${welcomeChannel}.` });
+            await interaction.editReply({ content: text.postwelcome.posted(`${welcomeChannel}`) });
             return;
         }
 
@@ -121,11 +123,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
             new ChannelSelectMenuBuilder()
                 .setCustomId("postwelcome_channel_picker")
                 .setChannelTypes(ChannelType.GuildText)
-                .setPlaceholder("No #welcome channel found — pick one"),
+                .setPlaceholder(text.postwelcome.pickChannelPlaceholder),
         );
 
         const pickerMessage = await interaction.editReply({
-            content: "No #welcome channel found. Which channel should I post in?",
+            content: text.postwelcome.pickChannelPrompt,
             components: [pickerRow],
         });
 
@@ -143,40 +145,38 @@ client.on(Events.InteractionCreate, async (interaction) => {
             const chosenChannel = await guild.channels.fetch(channelId);
 
             if (!chosenChannel || chosenChannel.type !== ChannelType.GuildText) {
-                await pickerInteraction.editReply({ content: "Invalid channel.", components: [] });
+                await pickerInteraction.editReply({ content: text.postwelcome.invalidChannel, components: [] });
                 return;
             }
 
             await chosenChannel.send({ embeds: [buildWelcomeEmbed(guild)], files: [buildLogoAttachment()] });
-            await pickerInteraction.editReply({ content: `Posted in ${chosenChannel}.`, components: [] });
+            await pickerInteraction.editReply({ content: text.postwelcome.posted(`${chosenChannel}`), components: [] });
         });
 
         postWelcomePickerCollector.on("end", (collected) => {
             if (collected.size === 0) {
-                interaction.editReply({ content: "Timed out, please run /postwelcome again.", components: [] });
+                interaction.editReply({ content: text.postwelcome.timedOut, components: [] });
             }
         });
     }
 
     if(interaction.commandName === "setup") {
         if (!interaction.guildId) {
-            await interaction.reply({ content: "This command only works in a server.", flags: MessageFlags.Ephemeral });
+            await interaction.reply({ content: text.common.guildOnly, flags: MessageFlags.Ephemeral });
             return;
         }
 
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-            new ButtonBuilder()
-                .setCustomId("setup_locale_en")
-                .setLabel("English")
-                .setStyle(ButtonStyle.Primary),
-            new ButtonBuilder()
-                .setCustomId("setup_locale_de")
-                .setLabel("Deutsch")
-                .setStyle(ButtonStyle.Secondary),
+            ...SUPPORTED_LOCALES.map((localeOption, i) =>
+                new ButtonBuilder()
+                    .setCustomId(`setup_locale_${localeOption.code}`)
+                    .setLabel(localeOption.label)
+                    .setStyle(i === 0 ? ButtonStyle.Primary : ButtonStyle.Secondary)
+            ),
         );
 
         const message = await interaction.reply({
-            content: "Which language do you prefer?",
+            content: text.setup.pickLanguage,
             components: [row],
             flags: MessageFlags.Ephemeral,
             fetchReply: true,
@@ -188,83 +188,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
             time: 60_000,
             max: 1,
         });
-
-        const localeConfirmations = {
-            de: "Die Sprache ist nun auf Deutsch eingestellt.",
-            en: "The language has been set to English.",
-        };
-
-        const rolePrompts = {
-            de: (found: number, total: number, missingNames: string) =>
-                `${found}/${total} Berufsrollen gefunden. Fehlend: ${missingNames}\nSollen die fehlenden Rollen jetzt erstellt werden?`,
-            en: (found: number, total: number, missingNames: string) =>
-                `${found}/${total} profession roles found. Missing: ${missingNames}\nShould the missing roles be created now?`,
-        };
-
-        const allFoundMessages = {
-            de: (total: number) => `Alle ${total} Berufsrollen wurden gefunden, keine mussten neu erstellt werden.`,
-            en: (total: number) => `All ${total} profession roles were found, none needed to be created.`,
-        };
-
-        const checkingRolesMessages = {
-            de: "Rollen werden geprüft, einen Moment bitte...",
-            en: "Checking roles, please give me a moment...",
-        };
-
-        const creatingRolesMessages = {
-            de: "Rollen werden erstellt, einen Moment bitte...",
-            en: "Creating roles, please give me a moment...",
-        };
-
-        const rolesCreatedMessages = {
-            de: (createdCount: number, total: number) => `${createdCount} neue Rolle(n) erstellt. Insgesamt sind jetzt ${total} Berufsrollen eingerichtet.`,
-            en: (createdCount: number, total: number) => `${createdCount} new role(s) created. ${total} profession roles are now set up in total.`,
-        };
-
-        const rolesSkippedMessages = {
-            de: (found: number, total: number) => `${found}/${total} Rollen gefunden, es wurden keine neuen Rollen erstellt.`,
-            en: (found: number, total: number) => `${found}/${total} roles found, no new roles were created.`,
-        };
-
-        const timedOutMessages = {
-            de: "Zeit abgelaufen, bitte /setup erneut ausführen.",
-            en: "Timed out, please run /setup again.",
-        };
-
-        const channelPrompts = {
-            de: "Soll ich einen Channel #crafting-orders anlegen, oder möchtest du einen bestehenden Channel auswählen?",
-            en: "Should I create a #crafting-orders channel, or would you like to select an existing one?",
-        };
-
-        const selectChannelPrompts = {
-            de: "Welchen Channel soll ich für Crafting-Anfragen nutzen?",
-            en: "Which channel should I use for crafting requests?",
-        };
-
-        const channelCreatedMessages = {
-            de: (channelId: string) => `<#${channelId}> wurde erstellt und als Crafting-Channel festgelegt.`,
-            en: (channelId: string) => `<#${channelId}> has been created and set as the crafting channel.`,
-        };
-
-        const channelSelectedMessages = {
-            de: (channelId: string) => `<#${channelId}> wurde als Crafting-Channel festgelegt.`,
-            en: (channelId: string) => `<#${channelId}> has been set as the crafting channel.`,
-        };
-
-        const channelFoundMessages = {
-            de: (channelId: string) => `Es existiert bereits ein Channel <#${channelId}>, dieser wurde als Crafting-Channel übernommen.`,
-            en: (channelId: string) => `A channel <#${channelId}> already exists and has been set as the crafting channel.`,
-        };
-
-        const setupCompletedMessages = {
-            de: "Setup abgeschlossen",
-            en: "Setup completed",
-        };
-
-        const settingUpChannelMessages = {
-            de: "Channel wird eingerichtet, einen Moment bitte...",
-            en: "Setting up the channel, please give me a moment...",
-        };
 
         async function promptChannelSetup(
             currentInteraction: ButtonInteraction,
@@ -279,7 +202,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             );
 
             if (existingChannel && existingChannel.type === ChannelType.GuildText) {
-                const placeholder = { content: settingUpChannelMessages[locale], components: [] };
+                const placeholder = { content: text.setup.settingUpChannel[locale], components: [] };
                 if (isFirstResponse) {
                     await currentInteraction.update(placeholder);
                 } else {
@@ -289,7 +212,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await finalizeCraftingChannel(existingChannel, guild.id, locale);
 
                 await currentInteraction.editReply({
-                    content: `${precedingText}\n${channelFoundMessages[locale](existingChannel.id)}\n\n${setupCompletedMessages[locale]}`,
+                    content: `${precedingText}\n${text.setup.channelFound[locale](existingChannel.id)}\n\n${text.setup.completed[locale]}`,
                     components: [],
                 });
                 return;
@@ -298,16 +221,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
             const channelRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
                 new ButtonBuilder()
                     .setCustomId("setup_channel_create")
-                    .setLabel(locale === "de" ? "#crafting-orders erstellen" : "Create #crafting-orders")
+                    .setLabel(text.setup.createChannelButton[locale])
                     .setStyle(ButtonStyle.Success),
                 new ButtonBuilder()
                     .setCustomId("setup_channel_select")
-                    .setLabel(locale === "de" ? "Bestehenden Channel wählen" : "Select existing channel")
+                    .setLabel(text.setup.selectChannelButton[locale])
                     .setStyle(ButtonStyle.Secondary),
             );
 
             const payload = {
-                content: `${precedingText}\n${channelPrompts[locale]}`,
+                content: `${precedingText}\n${text.setup.channelPrompt[locale]}`,
                 components: [channelRow],
             };
 
@@ -327,7 +250,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             channelCollector.on("collect", async (channelChoiceInteraction) => {
                 if (channelChoiceInteraction.customId === "setup_channel_create") {
                     await channelChoiceInteraction.update({
-                        content: settingUpChannelMessages[locale],
+                        content: text.setup.settingUpChannel[locale],
                         components: [],
                     });
 
@@ -340,7 +263,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     await finalizeCraftingChannel(channel, interaction.guildId!, locale);
 
                     await channelChoiceInteraction.editReply({
-                        content: `${precedingText}\n${channelCreatedMessages[locale](channel.id)}\n\n${setupCompletedMessages[locale]}`,
+                        content: `${precedingText}\n${text.setup.channelCreated[locale](channel.id)}\n\n${text.setup.completed[locale]}`,
                         components: [],
                     });
                     return;
@@ -350,11 +273,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     new ChannelSelectMenuBuilder()
                         .setCustomId("setup_channel_picker")
                         .setChannelTypes(ChannelType.GuildText)
-                        .setPlaceholder(selectChannelPrompts[locale]),
+                        .setPlaceholder(text.setup.selectChannelPrompt[locale]),
                 );
 
                 await channelChoiceInteraction.update({
-                    content: selectChannelPrompts[locale],
+                    content: text.setup.selectChannelPrompt[locale],
                     components: [selectRow],
                 });
 
@@ -369,7 +292,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     const channelId = pickerInteraction.values[0];
 
                     await pickerInteraction.update({
-                        content: settingUpChannelMessages[locale],
+                        content: text.setup.settingUpChannel[locale],
                         components: [],
                     });
 
@@ -379,32 +302,33 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     }
 
                     await pickerInteraction.editReply({
-                        content: `${precedingText}\n${channelSelectedMessages[locale](channelId)}\n\n${setupCompletedMessages[locale]}`,
+                        content: `${precedingText}\n${text.setup.channelSelected[locale](channelId)}\n\n${text.setup.completed[locale]}`,
                         components: [],
                     });
                 });
 
                 pickerCollector.on("end", (collected) => {
                     if (collected.size === 0) {
-                        channelChoiceInteraction.editReply({ content: timedOutMessages[locale], components: [] });
+                        channelChoiceInteraction.editReply({ content: text.setup.timedOut[locale], components: [] });
                     }
                 });
             });
 
             channelCollector.on("end", (collected) => {
                 if (collected.size === 0) {
-                    currentInteraction.editReply({ content: timedOutMessages[locale], components: [] });
+                    currentInteraction.editReply({ content: text.setup.timedOut[locale], components: [] });
                 }
             });
         }
 
         collector.on("collect", async (buttonInteraction) => {
-            const locale = buttonInteraction.customId === "setup_locale_de" ? "de" : "en";
+            const localeCode = buttonInteraction.customId.replace("setup_locale_", "");
+            const locale: Locale = (SUPPORTED_LOCALES.find(l => l.code === localeCode)?.code ?? "en") as Locale;
 
             saveGuildLocale(interaction.guildId!, locale);
 
             await buttonInteraction.update({
-                content: checkingRolesMessages[locale],
+                content: text.setup.checkingRoles[locale],
                 components: [],
             });
 
@@ -417,7 +341,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 await promptChannelSetup(
                     buttonInteraction,
                     locale,
-                    `${localeConfirmations[locale]}\n${allFoundMessages[locale](catalog.length)}`,
+                    `${text.setup.localeConfirmation[locale]}\n${text.setup.allRolesFound[locale](catalog.length)}`,
                     false
                 );
                 return;
@@ -428,16 +352,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
             const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
                 new ButtonBuilder()
                     .setCustomId("setup_create_roles_yes")
-                    .setLabel(locale === "de" ? "Ja, erstellen" : "Yes, create")
+                    .setLabel(text.setup.confirmCreateRolesButton[locale])
                     .setStyle(ButtonStyle.Success),
                 new ButtonBuilder()
                     .setCustomId("setup_create_roles_no")
-                    .setLabel(locale === "de" ? "Nein" : "No")
+                    .setLabel(text.setup.declineCreateRolesButton[locale])
                     .setStyle(ButtonStyle.Danger),
             );
 
             await buttonInteraction.editReply({
-                content: `${localeConfirmations[locale]}\n${rolePrompts[locale](matched.size, catalog.length, missingNames)}`,
+                content: `${text.setup.localeConfirmation[locale]}\n${text.setup.rolePrompt[locale](matched.size, catalog.length, missingNames)}`,
                 components: [confirmRow],
             });
 
@@ -453,13 +377,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
                 if (!createRoles) {
                     saveGuildProfessionRoles(guild.id, Object.fromEntries(matched));
-                    const skippedText = `${localeConfirmations[locale]}\n${rolesSkippedMessages[locale](matched.size, catalog.length)}`;
+                    const skippedText = `${text.setup.localeConfirmation[locale]}\n${text.setup.rolesSkipped[locale](matched.size, catalog.length)}`;
                     await promptChannelSetup(confirmInteraction, locale, skippedText, true);
                     return;
                 }
 
                 await confirmInteraction.update({
-                    content: creatingRolesMessages[locale],
+                    content: text.setup.creatingRoles[locale],
                     components: [],
                 });
 
@@ -468,20 +392,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
                 saveGuildProfessionRoles(guild.id, Object.fromEntries(allRoles));
 
-                const createdText = `${localeConfirmations[locale]}\n${rolesCreatedMessages[locale](created.size, allRoles.size)}`;
+                const createdText = `${text.setup.localeConfirmation[locale]}\n${text.setup.rolesCreated[locale](created.size, allRoles.size)}`;
                 await promptChannelSetup(confirmInteraction, locale, createdText, false);
             });
 
             confirmCollector.on("end", (collected) => {
                 if (collected.size === 0) {
-                    interaction.editReply({ content: timedOutMessages[locale], components: [] });
+                    interaction.editReply({ content: text.setup.timedOut[locale], components: [] });
                 }
             });
         });
 
         collector.on("end", (collected) => {
             if (collected.size === 0) {
-                interaction.editReply({ content: "Timed out, please run /setup again.", components: [] });
+                interaction.editReply({ content: text.setup.timedOut.en, components: [] });
             }
         });
     }
@@ -489,7 +413,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.commandName === "craft") {
         const guildId = interaction.guildId;
         if (!guildId || !interaction.guild) {
-            await interaction.reply({ content: "This command only works in a server.", flags: MessageFlags.Ephemeral });
+            await interaction.reply({ content: text.common.guildOnly, flags: MessageFlags.Ephemeral });
             return;
         }
 
@@ -499,20 +423,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         const craftingChannelId = getCraftingChannel(guildId);
         if (!craftingChannelId) {
-            await interaction.editReply(
-                locale === "de"
-                    ? "Für diese Gilde wurde noch kein Crafting-Channel eingerichtet. Bitte zuerst /setup ausführen."
-                    : "No crafting channel has been set up for this server yet. Please run /setup first."
-            );
+            await interaction.editReply(text.craft.noChannel[locale]);
             return;
         }
 
         if (interaction.channelId !== craftingChannelId) {
-            await interaction.editReply(
-                locale === "de"
-                    ? `Dieser Befehl funktioniert nur in <#${craftingChannelId}>.`
-                    : `This command only works in <#${craftingChannelId}>.`
-            );
+            await interaction.editReply(text.craft.wrongChannel[locale](craftingChannelId));
             return;
         }
 
@@ -520,11 +436,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const recipeEntry = recipeIndex.find(entry => entry.recipeId === recipeId);
 
         if (!recipeEntry) {
-            await interaction.editReply(
-                locale === "de"
-                    ? "Dieses Item wurde nicht erkannt. Bitte wähle einen Vorschlag aus der Liste."
-                    : "That item wasn't recognized. Please pick a suggestion from the list."
-            );
+            await interaction.editReply(text.craft.unknownItem[locale]);
             return;
         }
 
@@ -535,31 +447,19 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const roleId = professionRoles?.[recipeEntry.professionId];
 
         if (!roleId) {
-            await interaction.editReply(
-                locale === "de"
-                    ? "Für den zugehörigen Beruf ist keine Rolle eingerichtet. Bitte /setup erneut ausführen."
-                    : "No role is set up for the corresponding profession. Please run /setup again."
-            );
+            await interaction.editReply(text.craft.noRole[locale]);
             return;
         }
 
         const role = await interaction.guild.roles.fetch(roleId);
         if (!role) {
-            await interaction.editReply(
-                locale === "de"
-                    ? "Die zugehörige Berufsrolle existiert nicht mehr. Bitte /setup erneut ausführen."
-                    : "The corresponding profession role no longer exists. Please run /setup again."
-            );
+            await interaction.editReply(text.craft.roleGone[locale]);
             return;
         }
 
         const craftingChannel = await interaction.guild.channels.fetch(craftingChannelId);
         if (!craftingChannel || craftingChannel.type !== ChannelType.GuildText) {
-            await interaction.editReply(
-                locale === "de"
-                    ? "Der Crafting-Channel ist nicht mehr verfügbar. Bitte /setup erneut ausführen."
-                    : "The crafting channel is no longer available. Please run /setup again."
-            );
+            await interaction.editReply(text.craft.channelGone[locale]);
             return;
         }
 
@@ -596,11 +496,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             components: [buildClaimCancelRow(locale)],
         });
 
-        await interaction.editReply(
-            locale === "de"
-                ? `Anfrage erstellt: <#${thread.id}>`
-                : `Request created: <#${thread.id}>`
-        );
+        await interaction.editReply(text.craft.requestCreated[locale](thread.id));
     }
 });
 
