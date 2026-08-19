@@ -5,3 +5,14 @@ services:
     env_file: .env
     volumes:
       - ./guild-config:/app/guild-config
+
+  dozzle:
+    image: amir20/dozzle:latest
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # Bound to localhost only — no public exposure, no auth needed.
+    # Reach it via an SSH tunnel: ssh -L 8080:localhost:8080 root@<server-ip>
+    # then open http://localhost:8080 in your own browser.
+    ports:
+      - "127.0.0.1:8080:8080"
