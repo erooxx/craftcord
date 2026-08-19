@@ -29,12 +29,12 @@ export function buildWelcomeEmbed(guild: Guild): EmbedBuilder {
         .setDescription(
             "Craftcord organizes crafting requests in World of Warcraft guilds. " +
             "Use `/craft` in a server's crafting channel to request an item, or `/setup` (admin only) to configure the bot for your own guild.\n\n" +
-            `Server invite: ${LINKS.discordInvite}`
+            `Server invite: [click here](${LINKS.discordInvite})`
         )
         .addFields(
             {
                 name: "🚀 Get Craftcord",
-                value: `Get Craftcord on your server now: ${LINKS.getCraftcord}`,
+                value: `Get Craftcord on your server now: [click here](${LINKS.getCraftcord})`,
             },
             {
                 name: "❓ Got a question?",
