@@ -39,6 +39,7 @@ import {
     RELEASE_BUTTON_ID,
     CANCEL_BUTTON_ID,
 } from "./craftOrder.js";
+import { buildWelcomeEmbed } from "./welcomeMessage.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
 
@@ -90,6 +91,31 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.commandName === "ping") {
         await interaction.reply("Pong.");
     }
+
+    if (interaction.commandName === "postwelcome") {
+        if (interaction.user.id !== process.env.OWNER_ID) {
+            await interaction.reply({ content: "This command is restricted.", flags: MessageFlags.Ephemeral });
+            return;
+        }
+
+        if (!interaction.guild) {
+            await interaction.reply({ content: "This command only works in a server.", flags: MessageFlags.Ephemeral });
+            return;
+        }
+
+        const welcomeChannel = interaction.guild.channels.cache.find(
+            c => c.type === ChannelType.GuildText && c.name === "welcome"
+        );
+
+        if (!welcomeChannel || welcomeChannel.type !== ChannelType.GuildText) {
+            await interaction.reply({ content: "No #welcome channel found.", flags: MessageFlags.Ephemeral });
+            return;
+        }
+
+        await welcomeChannel.send({ embeds: [buildWelcomeEmbed(interaction.guild)] });
+        await interaction.reply({ content: `Posted in ${welcomeChannel}.`, flags: MessageFlags.Ephemeral });
+    }
+
     if(interaction.commandName === "setup") {
         if (!interaction.guildId) {
             await interaction.reply({ content: "This command only works in a server.", flags: MessageFlags.Ephemeral });
