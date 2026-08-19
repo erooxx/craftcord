@@ -42,7 +42,7 @@ import {
     RELEASE_BUTTON_ID,
     CANCEL_BUTTON_ID,
 } from "./craftOrder.js";
-import { buildWelcomeEmbed, buildLogoAttachment } from "./welcomeMessage.js";
+import { buildWelcomeEmbed, buildRulesEmbed, buildLogoAttachment } from "./welcomeMessage.js";
 
 process.on("unhandledRejection", (reason) => {
     console.error("Unhandled promise rejection:", reason);
@@ -155,7 +155,7 @@ client.on(Events.InteractionCreate, withErrorHandling("interactionCreate", async
         );
 
         if (welcomeChannel && welcomeChannel.type === ChannelType.GuildText) {
-            await welcomeChannel.send({ embeds: [buildWelcomeEmbed(guild)], files: [buildLogoAttachment()] });
+            await welcomeChannel.send({ embeds: [buildWelcomeEmbed(guild), buildRulesEmbed()], files: [buildLogoAttachment()] });
             await interaction.editReply({ content: text.postwelcome.posted(`${welcomeChannel}`) });
             return;
         }
@@ -190,7 +190,7 @@ client.on(Events.InteractionCreate, withErrorHandling("interactionCreate", async
                 return;
             }
 
-            await chosenChannel.send({ embeds: [buildWelcomeEmbed(guild)], files: [buildLogoAttachment()] });
+            await chosenChannel.send({ embeds: [buildWelcomeEmbed(guild), buildRulesEmbed()], files: [buildLogoAttachment()] });
             await pickerInteraction.editReply({ content: text.postwelcome.posted(`${chosenChannel}`), components: [] });
         }));
 
