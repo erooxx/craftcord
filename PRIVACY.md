@@ -27,11 +27,11 @@ To build the recipe catalog, the bot fetches public World of Warcraft game data 
 
 ## How long we keep data
 
-Your server's configuration is kept for as long as the bot is a member of your server. If you remove the bot, we intend to delete the associated configuration file; if you'd like it removed sooner, contact us (see below).
+Your server's configuration is kept for as long as the bot is a member of your server. If you remove the bot, the associated configuration file is deleted automatically.
 
 ## Your rights
 
-You can ask us to delete your server's stored configuration at any time — just reach out (see contact below), or simply remove the bot from your server.
+You can check what's stored for your server with `/guildinfo`, and delete it yourself at any time with `/guilddelete` (both admin-only) — or simply remove the bot from your server, which deletes it automatically too.
 
 ## Contact
 

@@ -12,8 +12,9 @@ Ausführung über `tsx`, kein Build-Schritt beim Entwickeln.
 Scripts: `npm run dev` (tsx watch), `npm run deploy` (Commands registrieren),
 `npm run import:recipes` (Blizzard-Import neu laufen lassen).
 
-Läuft aktuell nur lokal (`tsx watch`). Hosting noch nicht entschieden — siehe
-"Offene Punkte" unten.
+Läuft produktiv via Docker Compose auf einem Hetzner-VPS (siehe `Dockerfile`,
+`docker-compose.yml`); `guild-config/` wird als Bind-Mount persistiert. Lokal
+weiterhin `npm run dev` (tsx watch) zum Entwickeln.
 
 ## Datei-Überblick
 
@@ -142,6 +143,11 @@ nötig.
   postet das Projekt-Willkommens-Embed in `#welcome` (oder lässt per
   Channel-Picker auswählen, falls nicht gefunden). Nur für den
   Craftcord-eigenen Server relevant.
+- `/guildinfo` (Admin-only) — zeigt das gespeicherte `guild-config`-Objekt
+  für den aktuellen Server (Locale, Crafting-Channel, Berufsrolle-Zuordnung).
+- `/guilddelete` (Admin-only) — löscht die gespeicherte `guild-config`-Datei
+  für den aktuellen Server nach Bestätigung per Button. Selbstbedienungs-
+  Umsetzung des in `PRIVACY.md` zugesicherten Lösch-Rechts.
 
 **Wichtig:** Alle Commands sind aktuell nur auf **eine** Guild registriert
 (`GUILD_ID` = der Craftcord-Heimatserver). Für echte WoW-Gilden müssten
@@ -169,26 +175,23 @@ nötig.
 ## Rechtliches
 - `LICENSE` (AGPLv3, unverändert), `TERMS.md`, `PRIVACY.md` im Repo-Root.
   Erstentwürfe, keine geprüfte Rechtsberatung.
-- `PRIVACY.md` verspricht aktuell "Config wird gelöscht, wenn der Bot entfernt
-  wird" — das ist noch **nicht** implementiert (kein `GuildDelete`-Handler).
+- `PRIVACY.md` verspricht "Config wird gelöscht, wenn der Bot entfernt wird"
+  und ein Selbstbedienungs-Löschrecht — beides seit dem `GuildDelete`-Handler
+  bzw. `/guilddelete` umgesetzt.
 
 ## Offene Punkte (Stand zuletzt besprochen)
-1. **Keine globale Fehlerbehandlung.** Ein einzelner unbehandelter Fehler
-   (z. B. ein fehlgeschlagener Discord-API-Call) crasht den ganzen Prozess.
-   Vor dem Hosting-Entscheid als Erstes angehen.
-2. **Hosting noch offen.** Optionen besprochen: VPS (Hetzner/netcup), Railway/
-   Fly.io (Achtung: manche haben flüchtiges Dateisystem — `guild-config/`
-   bräuchte ein persistentes Volume), oder eigener Rechner. Nicht entschieden.
-3. `GuildDelete`-Handler fehlt (siehe "Rechtliches" oben).
-4. Max-Quality-Tier pro Rezept nicht auslesbar — siehe "Bewusste
+1. Max-Quality-Tier pro Rezept nicht auslesbar — siehe "Bewusste
    Architekturentscheidungen". Fallback wäre eine manuell gepflegte Liste.
-5. Mögliche nächste Commands: `/help`, `/setBotChannel` (Crafting-Channel
+2. Mögliche nächste Commands: `/help`, `/setBotChannel` (Crafting-Channel
    ändern ohne komplettes `/setup`). Nicht gebaut — **Nutzer will hierzu erst
    eine Umfrage in der Gilde machen**, bevor mehr spekulative Features gebaut
    werden.
-6. `src/`-Struktur ist noch flach (viele Dateien direkt unter `src/`) — als
+3. `src/`-Struktur ist noch flach (viele Dateien direkt unter `src/`) — als
    Aufräumarbeit für "am Ende" vorgemerkt, noch nicht umgesetzt.
-7. Optionale Idee, nicht entschieden: Bot löscht automatisch Nicht-Command-
+4. Optionale Idee, nicht entschieden: Bot löscht automatisch Nicht-Command-
    Nachrichten in `crafting-orders`, um den Channel wirklich bot-only zu
    machen (statt nur der Berechtigungs-Ansatz, der Slash-Commands mitblockiert
    hätte). Bewusst zurückgestellt, nicht MVP.
+5. Globale Command-Registrierung (`/setup`, `/craft`) für andere Gilden noch
+   bewusst zurückgestellt, bis der aktuelle Funktionsumfang final steht (siehe
+   "Wichtig" im Slash-Commands-Abschnitt oben).

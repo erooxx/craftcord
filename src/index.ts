@@ -5,6 +5,7 @@ import {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
+    EmbedBuilder,
     MessageFlags,
     ChannelSelectMenuBuilder,
     ChannelType,
@@ -22,6 +23,8 @@ import {
     getCraftingChannel,
     getGuildProfessionRoles,
     getGuildLocale,
+    getFullGuildConfig,
+    deleteGuildConfig,
     Locale,
 } from "./guildConfig.js";
 import { SUPPORTED_LOCALES } from "./i18n/locales.js";
@@ -97,6 +100,15 @@ async function finalizeCraftingChannel(channel: TextChannel, guildId: string, lo
 
 client.once(Events.ClientReady, (c) => {
     console.log(`Logged in as ${c.user.tag}`);
+});
+
+client.on(Events.GuildDelete, (guild) => {
+    try {
+        deleteGuildConfig(guild.id);
+        console.log(`Deleted stored config for guild ${guild.id} (bot removed)`);
+    } catch (error) {
+        console.error(`Failed to delete stored config for guild ${guild.id}:`, error);
+    }
 });
 
 client.on(Events.InteractionCreate, withErrorHandling("interactionCreate", async (interaction) => {
@@ -538,6 +550,83 @@ client.on(Events.InteractionCreate, withErrorHandling("interactionCreate", async
         });
 
         await interaction.editReply(text.craft.requestCreated[locale](thread.id));
+    }
+
+    if (interaction.commandName === "guildinfo") {
+        if (!interaction.guildId) {
+            await interaction.reply({ content: text.common.guildOnly, flags: MessageFlags.Ephemeral });
+            return;
+        }
+
+        const config = getFullGuildConfig(interaction.guildId);
+        if (!config) {
+            await interaction.reply({ content: "No configuration is stored for this server.", flags: MessageFlags.Ephemeral });
+            return;
+        }
+
+        const roleLines = config.professionRoles && Object.keys(config.professionRoles).length > 0
+            ? Object.entries(config.professionRoles).map(([professionId, roleId]) => `${professionId} → <@&${roleId}>`).join("\n")
+            : "None";
+
+        const embed = new EmbedBuilder()
+            .setTitle("Stored configuration")
+            .setColor(0x5865f2)
+            .addFields(
+                { name: "Locale", value: config.locale ?? "—", inline: true },
+                { name: "Crafting channel", value: config.craftingChannelId ? `<#${config.craftingChannelId}>` : "—", inline: true },
+                { name: "Profession roles (profession ID → role)", value: roleLines },
+            );
+
+        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    }
+
+    if (interaction.commandName === "guilddelete") {
+        if (!interaction.guildId) {
+            await interaction.reply({ content: text.common.guildOnly, flags: MessageFlags.Ephemeral });
+            return;
+        }
+
+        const guildId = interaction.guildId;
+
+        if (!getFullGuildConfig(guildId)) {
+            await interaction.reply({ content: "No configuration is stored for this server — nothing to delete.", flags: MessageFlags.Ephemeral });
+            return;
+        }
+
+        const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder().setCustomId("guilddelete_confirm").setLabel("Delete").setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId("guilddelete_cancel").setLabel("Cancel").setStyle(ButtonStyle.Secondary),
+        );
+
+        const message = await interaction.reply({
+            content: "This deletes all stored configuration for this server (locale, crafting channel, profession role mappings). This cannot be undone — you'll need to run `/setup` again afterward. Continue?",
+            components: [confirmRow],
+            flags: MessageFlags.Ephemeral,
+            fetchReply: true,
+        });
+
+        const deleteCollector = message.createMessageComponentCollector({
+            componentType: ComponentType.Button,
+            filter: (i) => i.user.id === interaction.user.id,
+            time: 60_000,
+            max: 1,
+        });
+
+        deleteCollector.on("collect", withErrorHandling("guilddelete:confirm", async (buttonInteraction) => {
+            if (buttonInteraction.customId === "guilddelete_cancel") {
+                await buttonInteraction.update({ content: "Cancelled. Nothing was deleted.", components: [] });
+                return;
+            }
+
+            deleteGuildConfig(guildId);
+            await buttonInteraction.update({ content: "Deleted. Run `/setup` to configure Craftcord again.", components: [] });
+        }));
+
+        deleteCollector.on("end", (collected) => {
+            if (collected.size === 0) {
+                interaction.editReply({ content: "Timed out — nothing was deleted.", components: [] });
+            }
+        });
     }
 }));
 

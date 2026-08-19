@@ -47,6 +47,16 @@ const commands = [
         .setDescription("Posts the welcome message in #welcome (owner only)")
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .toJSON(),
+    new SlashCommandBuilder()
+        .setName("guildinfo")
+        .setDescription("Shows what Craftcord has stored for this server")
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+        .toJSON(),
+    new SlashCommandBuilder()
+        .setName("guilddelete")
+        .setDescription("Deletes everything Craftcord has stored for this server")
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+        .toJSON(),
 ];
 
 const rest = new REST().setToken(process.env.DISCORD_TOKEN!);

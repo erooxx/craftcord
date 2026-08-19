@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, unlinkSync, mkdirSync, existsSync } from "node:fs";
 import type { Locale } from "./i18n/locales.js";
 
 export type { Locale };
@@ -52,4 +52,18 @@ export function saveCraftingChannel(guildId: string, channelId: string) {
 
 export function getCraftingChannel(guildId: string): string | undefined {
     return readConfig(guildId).craftingChannelId;
+}
+
+export function getFullGuildConfig(guildId: string): Partial<GuildConfig> | null {
+    if (!existsSync(configPath(guildId))) {
+        return null;
+    }
+    return readConfig(guildId);
+}
+
+export function deleteGuildConfig(guildId: string) {
+    const path = configPath(guildId);
+    if (existsSync(path)) {
+        unlinkSync(path);
+    }
 }
