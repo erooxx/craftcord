@@ -33,6 +33,10 @@ export function buildWelcomeEmbed(guild: Guild): EmbedBuilder {
         )
         .addFields(
             {
+                name: "🚀 Get Craftcord",
+                value: `Get Craftcord on your server now: ${LINKS.getCraftcord}`,
+            },
+            {
                 name: "❓ Got a question?",
                 value: `Check ${supportForum} first for known issues. You can also search this server (\`Ctrl+F\`). Still stuck? Ask in ${questions}.`,
             },
@@ -52,7 +56,7 @@ export function buildWelcomeEmbed(guild: Guild): EmbedBuilder {
             },
             {
                 name: "🔗 Links",
-                value: `[Get Craftcord](${LINKS.getCraftcord}) • [GitHub](${LINKS.github}) • [Privacy Policy](${LINKS.privacyPolicy}) • [Terms of Service](${LINKS.termsOfService})`,
+                value: `[GitHub](${LINKS.github}) • [Privacy Policy](${LINKS.privacyPolicy}) • [Terms of Service](${LINKS.termsOfService})`,
             },
         );
 }

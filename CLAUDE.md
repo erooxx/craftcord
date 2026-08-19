@@ -149,10 +149,11 @@ nötig.
   für den aktuellen Server nach Bestätigung per Button. Selbstbedienungs-
   Umsetzung des in `PRIVACY.md` zugesicherten Lösch-Rechts.
 
-**Wichtig:** Alle Commands sind aktuell nur auf **eine** Guild registriert
-(`GUILD_ID` = der Craftcord-Heimatserver). Für echte WoW-Gilden müssten
-`/setup` und `/craft` global registriert werden (bis zu 1h Propagation);
-`/postwelcome` sollte bewusst guild-spezifisch bleiben.
+**Wichtig:** `/ping`, `/setup`, `/craft`, `/guildinfo`, `/guilddelete` sind
+global registriert (`Routes.applicationCommands`, bis zu 1h Propagation),
+funktionieren also in jeder Gilde, die den Bot einlädt. `/postwelcome` bleibt
+bewusst guild-spezifisch auf `GUILD_ID` (der Craftcord-Heimatserver) —
+`deploy-commands.ts` macht dafür zwei getrennte `PUT`-Calls.
 
 ## Blizzard-API
 - Game Data API, Namespace `static-eu`, Client-Credentials-Flow
@@ -192,6 +193,9 @@ nötig.
    Nachrichten in `crafting-orders`, um den Channel wirklich bot-only zu
    machen (statt nur der Berechtigungs-Ansatz, der Slash-Commands mitblockiert
    hätte). Bewusst zurückgestellt, nicht MVP.
-5. Globale Command-Registrierung (`/setup`, `/craft`) für andere Gilden noch
-   bewusst zurückgestellt, bis der aktuelle Funktionsumfang final steht (siehe
-   "Wichtig" im Slash-Commands-Abschnitt oben).
+5. `/legacycraft` (ältere Skill-Tiers, siehe Blizzard-API-Abschnitt) bewusst
+   noch nicht gebaut — soll nach dem MVP-Launch als sichtbare Weiterentwicklung
+   nachgezogen werden, statt alles auf einmal zu launchen.
+6. Repo-Neustart unter pseudonymem GitHub-Account (`erooxx`) geplant, um
+   echten Namen/Firmen-Mail aus der Git-Historie rauszubekommen — pausiert,
+   bis der Account existiert (noch nicht angelegt).

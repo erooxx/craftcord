@@ -1,7 +1,9 @@
 import { REST, Routes, SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import "dotenv/config";
 
-const commands = [
+// Usable by any guild the bot is invited to — registered globally so every
+// server gets them without us touching deploy-commands.ts per guild.
+const globalCommands = [
     new SlashCommandBuilder()
         .setName("ping")
         .setDescription("Is the bot alive?")
@@ -43,11 +45,6 @@ const commands = [
         )
         .toJSON(),
     new SlashCommandBuilder()
-        .setName("postwelcome")
-        .setDescription("Posts the welcome message in #welcome (owner only)")
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-        .toJSON(),
-    new SlashCommandBuilder()
         .setName("guildinfo")
         .setDescription("Shows what Craftcord has stored for this server")
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
@@ -59,11 +56,25 @@ const commands = [
         .toJSON(),
 ];
 
+// Only relevant on the Craftcord home server, kept guild-scoped on purpose.
+const homeGuildCommands = [
+    new SlashCommandBuilder()
+        .setName("postwelcome")
+        .setDescription("Posts the welcome message in #welcome (owner only)")
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+        .toJSON(),
+];
+
 const rest = new REST().setToken(process.env.DISCORD_TOKEN!);
 
 await rest.put(
-    Routes.applicationGuildCommands(process.env.CLIENT_ID!, process.env.GUILD_ID!),
-    { body: commands }
+    Routes.applicationCommands(process.env.CLIENT_ID!),
+    { body: globalCommands }
 );
 
-console.log("Commands registered.");
+await rest.put(
+    Routes.applicationGuildCommands(process.env.CLIENT_ID!, process.env.GUILD_ID!),
+    { body: homeGuildCommands }
+);
+
+console.log("Commands registered (global + home guild).");
