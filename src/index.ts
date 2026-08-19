@@ -572,6 +572,7 @@ client.on(Events.InteractionCreate, withErrorHandling("interactionCreate", async
             .setTitle("Stored configuration")
             .setColor(0x5865f2)
             .addFields(
+                { name: "Guild ID", value: interaction.guildId, inline: true },
                 { name: "Locale", value: config.locale ?? "—", inline: true },
                 { name: "Crafting channel", value: config.craftingChannelId ? `<#${config.craftingChannelId}>` : "—", inline: true },
                 { name: "Profession roles (profession ID → role)", value: roleLines },
