@@ -10,6 +10,7 @@ import {
     ChannelType,
     ComponentType,
     ButtonInteraction,
+    Interaction,
     ThreadAutoArchiveDuration,
     TextChannel,
 } from "discord.js";
@@ -43,9 +44,49 @@ import {
 } from "./craftOrder.js";
 import { buildWelcomeEmbed, buildLogoAttachment } from "./welcomeMessage.js";
 
+process.on("unhandledRejection", (reason) => {
+    console.error("Unhandled promise rejection:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+    console.error("Uncaught exception:", error);
+});
+
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
 
+client.on(Events.Error, (error) => {
+    console.error("Discord client error:", error);
+});
+
 const recipeIndex = buildRecipeIndex(loadRecipeCatalog());
+
+async function reportInteractionError(interaction: Interaction, error: unknown, context: string) {
+    console.error(`[${context}]`, error);
+
+    if (!interaction.isRepliable()) return;
+
+    const locale: Locale = (interaction.guildId && getGuildLocale(interaction.guildId)) || "en";
+
+    try {
+        if (interaction.deferred || interaction.replied) {
+            await interaction.editReply({ content: text.common.unexpectedError[locale], components: [] });
+        } else {
+            await interaction.reply({ content: text.common.unexpectedError[locale], flags: MessageFlags.Ephemeral });
+        }
+    } catch (replyError) {
+        console.error(`[${context}] failed to notify user:`, replyError);
+    }
+}
+
+function withErrorHandling<T extends Interaction>(context: string, handler: (interaction: T) => Promise<void>) {
+    return async (interaction: T) => {
+        try {
+            await handler(interaction);
+        } catch (error) {
+            await reportInteractionError(interaction, error, context);
+        }
+    };
+}
 
 async function finalizeCraftingChannel(channel: TextChannel, guildId: string, locale: Locale) {
     saveCraftingChannel(guildId, channel.id);
@@ -58,7 +99,7 @@ client.once(Events.ClientReady, (c) => {
     console.log(`Logged in as ${c.user.tag}`);
 });
 
-client.on(Events.InteractionCreate, async (interaction) => {
+client.on(Events.InteractionCreate, withErrorHandling("interactionCreate", async (interaction) => {
     if (interaction.isButton()) {
         if (interaction.customId === CLAIM_BUTTON_ID) {
             await handleClaimButton(interaction);
@@ -138,7 +179,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             max: 1,
         });
 
-        postWelcomePickerCollector.on("collect", async (pickerInteraction) => {
+        postWelcomePickerCollector.on("collect", withErrorHandling("postwelcome:channelPicker", async (pickerInteraction) => {
             await pickerInteraction.deferUpdate();
 
             const channelId = pickerInteraction.values[0];
@@ -151,7 +192,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
             await chosenChannel.send({ embeds: [buildWelcomeEmbed(guild)], files: [buildLogoAttachment()] });
             await pickerInteraction.editReply({ content: text.postwelcome.posted(`${chosenChannel}`), components: [] });
-        });
+        }));
 
         postWelcomePickerCollector.on("end", (collected) => {
             if (collected.size === 0) {
@@ -247,7 +288,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 max: 1,
             });
 
-            channelCollector.on("collect", async (channelChoiceInteraction) => {
+            channelCollector.on("collect", withErrorHandling("setup:channelChoice", async (channelChoiceInteraction) => {
                 if (channelChoiceInteraction.customId === "setup_channel_create") {
                     await channelChoiceInteraction.update({
                         content: text.setup.settingUpChannel[locale],
@@ -288,7 +329,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     max: 1,
                 });
 
-                pickerCollector.on("collect", async (pickerInteraction) => {
+                pickerCollector.on("collect", withErrorHandling("setup:channelPicker", async (pickerInteraction) => {
                     const channelId = pickerInteraction.values[0];
 
                     await pickerInteraction.update({
@@ -305,14 +346,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         content: `${precedingText}\n${text.setup.channelSelected[locale](channelId)}\n\n${text.setup.completed[locale]}`,
                         components: [],
                     });
-                });
+                }));
 
                 pickerCollector.on("end", (collected) => {
                     if (collected.size === 0) {
                         channelChoiceInteraction.editReply({ content: text.setup.timedOut[locale], components: [] });
                     }
                 });
-            });
+            }));
 
             channelCollector.on("end", (collected) => {
                 if (collected.size === 0) {
@@ -321,7 +362,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             });
         }
 
-        collector.on("collect", async (buttonInteraction) => {
+        collector.on("collect", withErrorHandling("setup:localeChoice", async (buttonInteraction) => {
             const localeCode = buttonInteraction.customId.replace("setup_locale_", "");
             const locale: Locale = (SUPPORTED_LOCALES.find(l => l.code === localeCode)?.code ?? "en") as Locale;
 
@@ -372,7 +413,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 max: 1,
             });
 
-            confirmCollector.on("collect", async (confirmInteraction) => {
+            confirmCollector.on("collect", withErrorHandling("setup:confirmCreateRoles", async (confirmInteraction) => {
                 const createRoles = confirmInteraction.customId === "setup_create_roles_yes";
 
                 if (!createRoles) {
@@ -394,14 +435,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
                 const createdText = `${text.setup.localeConfirmation[locale]}\n${text.setup.rolesCreated[locale](created.size, allRoles.size)}`;
                 await promptChannelSetup(confirmInteraction, locale, createdText, false);
-            });
+            }));
 
             confirmCollector.on("end", (collected) => {
                 if (collected.size === 0) {
                     interaction.editReply({ content: text.setup.timedOut[locale], components: [] });
                 }
             });
-        });
+        }));
 
         collector.on("end", (collected) => {
             if (collected.size === 0) {
@@ -498,6 +539,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         await interaction.editReply(text.craft.requestCreated[locale](thread.id));
     }
-});
+}));
 
 client.login(process.env.DISCORD_TOKEN);

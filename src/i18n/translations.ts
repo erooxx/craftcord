@@ -1,6 +1,10 @@
 export const text = {
     common: {
         guildOnly: "This command only works in a server.",
+        unexpectedError: {
+            de: "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+            en: "Something went wrong. Please try again.",
+        },
     },
 
     postwelcome: {
