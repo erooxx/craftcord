@@ -23,12 +23,12 @@ export async function handleGuildDelete(interaction: ChatInputCommandInteraction
         new ButtonBuilder().setCustomId("guilddelete_cancel").setLabel(text.guildDelete.cancelButton[locale]).setStyle(ButtonStyle.Secondary),
     );
 
-    const message = await interaction.reply({
+    await interaction.reply({
         content: text.guildDelete.confirmPrompt[locale],
         components: [confirmRow],
         flags: MessageFlags.Ephemeral,
-        fetchReply: true,
     });
+    const message = await interaction.fetchReply();
 
     const buttonInteraction = await awaitSingleComponent(message, ComponentType.Button, interaction.user.id);
     if (!buttonInteraction) {

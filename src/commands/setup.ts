@@ -23,7 +23,17 @@ async function finalizeCraftingChannel(channel: TextChannel, guildId: string, lo
     await saveCraftingChannel(guildId, channel.id);
 
     const infoMessage = await channel.send({ embeds: [buildCraftingChannelInfoEmbed(locale)] });
-    await infoMessage.pin();
+
+    // Pinning needs "Manage Messages" in this specific channel, which the
+    // guild's permission overwrites might not grant even if the bot has it
+    // guild-wide. It's a nice-to-have (keeps the info message anchored),
+    // not load-bearing — /craft doesn't depend on it — so a missing
+    // permission here shouldn't fail the whole /setup flow.
+    try {
+        await infoMessage.pin();
+    } catch (error) {
+        console.error(`Failed to pin crafting channel info message in guild ${guildId}:`, error);
+    }
 }
 
 // `respondTo` must already have had its initial response (reply/update)
@@ -93,11 +103,11 @@ async function promptChannelSetup(
             .setPlaceholder(text.setup.selectChannelPrompt[locale]),
     );
 
-    const pickerMessage = await channelChoice.update({
+    await channelChoice.update({
         content: text.setup.selectChannelPrompt[locale],
         components: [selectRow],
-        fetchReply: true,
     });
+    const pickerMessage = await channelChoice.fetchReply();
 
     const pickerInteraction = await awaitSingleComponent(pickerMessage, ComponentType.ChannelSelect, userId);
     if (!pickerInteraction) {
@@ -138,12 +148,12 @@ export async function handleSetup(interaction: ChatInputCommandInteraction) {
         ),
     );
 
-    const message = await interaction.reply({
+    await interaction.reply({
         content: text.setup.pickLanguage,
         components: [row],
         flags: MessageFlags.Ephemeral,
-        fetchReply: true,
     });
+    const message = await interaction.fetchReply();
 
     const localeChoice = await awaitSingleComponent(message, ComponentType.Button, userId);
     if (!localeChoice) {
