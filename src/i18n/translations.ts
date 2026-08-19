@@ -103,6 +103,41 @@ export const text = {
         },
     },
 
+    guildInfo: {
+        noConfig: {
+            de: "Für diesen Server ist keine Konfiguration gespeichert.",
+            en: "No configuration is stored for this server.",
+        },
+        title: { de: "Gespeicherte Konfiguration", en: "Stored configuration" },
+        guildIdLabel: { de: "Server-ID", en: "Guild ID" },
+        localeLabel: { de: "Sprache", en: "Locale" },
+        craftingChannelLabel: { de: "Crafting-Channel", en: "Crafting channel" },
+        professionRolesLabel: {
+            de: "Berufsrollen (Berufs-ID → Rolle)",
+            en: "Profession roles (profession ID → role)",
+        },
+        none: { de: "Keine", en: "None" },
+    },
+
+    guildDelete: {
+        noConfig: {
+            de: "Für diesen Server ist keine Konfiguration gespeichert — nichts zu löschen.",
+            en: "No configuration is stored for this server — nothing to delete.",
+        },
+        confirmPrompt: {
+            de: "Damit wird die gesamte gespeicherte Konfiguration für diesen Server gelöscht (Sprache, Crafting-Channel, Berufsrollen-Zuordnung). Das kann nicht rückgängig gemacht werden — danach muss `/setup` erneut ausgeführt werden. Fortfahren?",
+            en: "This deletes all stored configuration for this server (locale, crafting channel, profession role mappings). This cannot be undone — you'll need to run `/setup` again afterward. Continue?",
+        },
+        confirmButton: { de: "Löschen", en: "Delete" },
+        cancelButton: { de: "Abbrechen", en: "Cancel" },
+        cancelled: { de: "Abgebrochen. Nichts wurde gelöscht.", en: "Cancelled. Nothing was deleted." },
+        deleted: {
+            de: "Gelöscht. Führe `/setup` aus, um Craftcord erneut zu konfigurieren.",
+            en: "Deleted. Run `/setup` to configure Craftcord again.",
+        },
+        timedOut: { de: "Zeit abgelaufen — nichts wurde gelöscht.", en: "Timed out — nothing was deleted." },
+    },
+
     craft: {
         noChannel: {
             de: "Für diese Gilde wurde noch kein Crafting-Channel eingerichtet. Bitte zuerst /setup ausführen.",
@@ -160,6 +195,11 @@ export const text = {
             cannotClaimOwn: {
                 de: "Du kannst deine eigene Anfrage nicht übernehmen.",
                 en: "You can't claim your own order.",
+            },
+
+            alreadyClaimed: {
+                de: "Dieser Auftrag wurde bereits übernommen.",
+                en: "This order has already been claimed.",
             },
 
             onlyExecutorCanComplete: {

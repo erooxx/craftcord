@@ -18,34 +18,60 @@ weiterhin `npm run dev` (tsx watch) zum Entwickeln.
 
 ## Datei-Überblick
 
-- `src/index.ts` — Bot-Einstiegspunkt, der komplette `InteractionCreate`-Handler
-  (Buttons, Autocomplete, alle Slash-Commands). Größte Datei, absichtlich noch
-  nicht weiter aufgeteilt (siehe "Offene Punkte").
-- `src/deploy-commands.ts` — registriert Slash-Commands via
-  `Routes.applicationGuildCommands` (nur **eine** Guild, `GUILD_ID` in `.env` —
-  euer Craftcord-Heimatserver, nicht global; siehe unten).
+- `src/index.ts` — schlanker Bot-Einstiegspunkt: Client-Setup, `GuildDelete`-
+  Handler, `InteractionCreate`-Dispatch (Buttons, Autocomplete, Routing zu
+  `src/commands/*.ts`). Bis August 2026 war das ein 634-Zeilen-Monolith mit
+  allen Command-Handlern inline; seit dem Pre-1.0.0-Refactor nur noch ~110
+  Zeilen reines Routing.
+- `src/commands/` — ein File pro Slash-Command (`ping.ts`, `setup.ts`,
+  `craft.ts`, `postwelcome.ts`, `guildinfo.ts`, `guilddelete.ts`). `setup.ts`
+  ist der komplexeste: statt verschachtelter `createMessageComponentCollector`-
+  Callbacks (die alte Struktur) läuft der Locale→Rollen→Channel-Flow als
+  flache Sequenz von `await`s über `interactions/collector.ts`.
+- `src/interactions/` — geteilte Interaction-Infrastruktur:
+  `errorHandling.ts` (`withErrorHandling`/`reportInteractionError`, einmal am
+  Dispatcher angewendet statt pro Collector einzeln) und `collector.ts`
+  (`awaitSingleComponent`, ersetzt das collector+on("collect")+on("end")-
+  Dreiergespann, das vorher an jeder Button-/Select-Stelle kopiert war).
+- `src/deploy-commands.ts` — registriert Slash-Commands, siehe
+  "Slash-Commands" unten für global vs. guild-spezifisch.
 - `src/guildConfig.ts` — liest/schreibt `guild-config/<guildId>.json`
-  (Locale, Profession→Rolle-Zuordnung, Crafting-Channel-ID). Lese-vor-Schreibe-
-  Muster, damit ein Feld nie ein anderes überschreibt.
+  (Locale, Profession→Rolle-Zuordnung, Crafting-Channel-ID). Alle
+  Schreibzugriffe laufen durch eine pro Guild serialisierte Warteschlange
+  (`withGuildLock`), damit zwei gleichzeitige Interaktionen für dieselbe
+  Gilde (z. B. zwei `/setup`-Läufe, oder `/setup` parallel zu
+  `/guilddelete`) sich nicht gegenseitig überschreiben können. Save-Funktionen
+  sind deshalb `async` — Aufrufer müssen `await`en.
 - `src/i18n/locales.ts` + `src/i18n/translations.ts` — zentrale Lokalisierung
   (siehe eigener Abschnitt unten).
 - `src/craftOrder.ts` — Embed-Aufbau + Button-Handler für `/craft`-Aufträge
   (Übernehmen/Abschließen/Zurückgeben/Abbrechen) und das Crafting-Channel-Info-Embed.
+  Jeder Button-Handler läuft durch eine pro Nachricht serialisierte
+  Warteschlange (`withOrderLock`) und liest den Embed-Stand frisch von
+  Discord (`interaction.message.fetch()`) statt der ggf. veralteten
+  Interaction-Snapshot — verhindert, dass zwei fast gleichzeitige Klicks
+  (z. B. zwei Leute übernehmen gleichzeitig) den Auftrag inkonsistent machen.
 - `src/roleSync.ts` — gleicht Berufsrollen einer Gilde mit dem Katalog ab,
-  erstellt fehlende, benennt bei Sprachwechsel um.
-- `src/professions.ts` — `RELEVANT_PROFESSION_IDS` (die 12 echten Crafting-
-  Berufe, Gathering-Berufe ohne Rezepte wie Angeln/Archäologie/Skinning/Mining
-  z. T. bewusst raus) + `PROFESSION_COLORS`.
-- `src/reagentSlots.ts` — `EXCLUDED_REAGENT_SLOT_NAMES`, filtert generische
-  Mechanik-Slots (Artisan's Authenticity, Add Embellishment, Socket, ...) aus
-  den Zusatz-Reagenzien raus. **Namensbasiert, nicht ID-basiert** — Blizzard
-  vergibt für dieselbe Mechanik pro Beruf/Rezept unterschiedliche IDs.
-- `src/excludedCategories.ts` — filtert Rezept-Kategorien raus, die keine
-  echten Rezepte sind (Spezialisierungs-/Wissens-Kategorien: `Appendix*`,
-  `Recraft*`, `Section *`, `Tracking`, `Skinning Details`).
-- `src/recipeCatalog.ts` / `src/recipeIndex.ts` — laden `data/recipes.json`
-  und bauen daraus den flachen Autocomplete-Suchindex (`recipeIndex`), einmal
-  beim Bot-Start im Speicher.
+  erstellt fehlende, benennt bei Sprachwechsel um. `createMissingRoles`
+  nimmt einen optionalen `onRoleCreated`-Callback, über den `setup.ts` jede
+  neu erstellte Rolle sofort persistiert — bricht die Erstellung mittendrin
+  ab (Rate-Limit, Rollen-Cap), sind die bereits erstellten Rollen trotzdem
+  gespeichert statt verwaist.
+- `src/catalog/` — die statische Rezept-/Berufs-Datenschicht:
+  - `professions.ts` — `RELEVANT_PROFESSION_IDS` (die 12 echten Crafting-
+    Berufe, Gathering-Berufe ohne Rezepte wie Angeln/Archäologie/Skinning/
+    Mining z. T. bewusst raus) + `PROFESSION_COLORS`.
+  - `reagentSlots.ts` — `EXCLUDED_REAGENT_SLOT_NAMES`, filtert generische
+    Mechanik-Slots (Artisan's Authenticity, Add Embellishment, Socket, ...)
+    aus den Zusatz-Reagenzien raus. **Namensbasiert, nicht ID-basiert** —
+    Blizzard vergibt für dieselbe Mechanik pro Beruf/Rezept unterschiedliche
+    IDs.
+  - `excludedCategories.ts` — filtert Rezept-Kategorien raus, die keine
+    echten Rezepte sind (Spezialisierungs-/Wissens-Kategorien: `Appendix*`,
+    `Recraft*`, `Section *`, `Tracking`, `Skinning Details`).
+  - `recipeCatalog.ts` / `recipeIndex.ts` — laden `data/recipes.json` und
+    bauen daraus den flachen Autocomplete-Suchindex (`recipeIndex`), einmal
+    beim Bot-Start im Speicher.
 - `src/blizzard/` — Blizzard-API-Client (Auth, `authenticatedGet`, die vier
   Endpoint-Funktionen, Icon-Auflösung über den Media-Endpoint).
 - `src/scripts/import-recipes.ts` — das eigentliche Import-Skript, schreibt
@@ -85,7 +111,7 @@ weiterhin `npm run dev` (tsx watch) zum Entwickeln.
   API-Calls davor (Rollen erstellen, Channel anlegen, Embed senden) reißen das
   regelmäßig. Muster: sofort `update()`/`deferUpdate()` mit Platzhalter-Text,
   dann die langsame Arbeit, dann `editReply()` mit dem Ergebnis. Kommt in
-  praktisch jedem Handler in `index.ts` vor.
+  praktisch jedem Command-Handler in `src/commands/` vor.
 - **Rollen-Umbenennung ist rate-limitiert** (~2 Änderungen/10min pro Channel/
   Rolle, Discord-eigenes Limit, nicht das normale API-Rate-Limit). Betrifft
   schnelles Testen von Übernehmen/Zurückgeben hintereinander — in echter
@@ -187,15 +213,17 @@ bewusst guild-spezifisch auf `GUILD_ID` (der Craftcord-Heimatserver) —
    ändern ohne komplettes `/setup`). Nicht gebaut — **Nutzer will hierzu erst
    eine Umfrage in der Gilde machen**, bevor mehr spekulative Features gebaut
    werden.
-3. `src/`-Struktur ist noch flach (viele Dateien direkt unter `src/`) — als
-   Aufräumarbeit für "am Ende" vorgemerkt, noch nicht umgesetzt.
-4. Optionale Idee, nicht entschieden: Bot löscht automatisch Nicht-Command-
+3. Optionale Idee, nicht entschieden: Bot löscht automatisch Nicht-Command-
    Nachrichten in `crafting-orders`, um den Channel wirklich bot-only zu
    machen (statt nur der Berechtigungs-Ansatz, der Slash-Commands mitblockiert
    hätte). Bewusst zurückgestellt, nicht MVP.
-5. `/legacycraft` (ältere Skill-Tiers, siehe Blizzard-API-Abschnitt) bewusst
+4. `/legacycraft` (ältere Skill-Tiers, siehe Blizzard-API-Abschnitt) bewusst
    noch nicht gebaut — soll nach dem MVP-Launch als sichtbare Weiterentwicklung
    nachgezogen werden, statt alles auf einmal zu launchen.
-6. Repo-Neustart unter pseudonymem GitHub-Account (`erooxx`) geplant, um
+5. Repo-Neustart unter pseudonymem GitHub-Account (`erooxx`) geplant, um
    echten Namen/Firmen-Mail aus der Git-Historie rauszubekommen — pausiert,
    bis der Account existiert (noch nicht angelegt).
+6. `src/index.ts` war bis August 2026 ein 634-Zeilen-Monolith mit allen
+   Command-Handlern inline und stark dupliziertem Collector-Code (siehe
+   Code-Review) — behoben durch Aufteilung in `src/commands/` +
+   `src/interactions/` (siehe "Datei-Überblick").

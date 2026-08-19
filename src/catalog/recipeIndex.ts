@@ -1,5 +1,5 @@
 import type { CatalogProfession, CatalogReagent, CatalogAdditionalReagent } from "./recipeCatalog.js";
-import type { Locale } from "./guildConfig.js";
+import type { Locale } from "../guildConfig.js";
 
 export interface RecipeIndexEntry {
     recipeId: number;

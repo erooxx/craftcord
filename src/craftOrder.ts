@@ -10,8 +10,8 @@ import {
     ThreadAutoArchiveDuration,
 } from "discord.js";
 import type { Locale } from "./guildConfig.js";
-import type { RecipeIndexEntry } from "./recipeIndex.js";
-import { PROFESSION_COLORS } from "./professions.js";
+import type { RecipeIndexEntry } from "./catalog/recipeIndex.js";
+import { PROFESSION_COLORS } from "./catalog/professions.js";
 import { getGuildLocale } from "./guildConfig.js";
 import { text } from "./i18n/translations.js";
 
@@ -88,13 +88,25 @@ function buildCompleteReleaseCancelRow(locale: Locale): ActionRowBuilder<ButtonB
     );
 }
 
-function extractUserId(embed: Embed, marker: string): string | undefined {
+// Every order embed always has both marker fields (buildCraftOrderEmbed
+// always adds them) — if one is ever missing the embed isn't one of ours,
+// or its shape changed underneath us. Throwing surfaces that as a clean
+// generic error instead of silently corrupting the order's claimed state.
+function findMarkerField(embed: Embed, marker: string) {
     const field = embed.fields.find(f => f.name.startsWith(marker));
-    const match = field?.value.match(/<@(\d+)>/);
+    if (!field) {
+        throw new Error(`Expected embed field starting with "${marker}" not found`);
+    }
+    return field;
+}
+
+function extractUserId(embed: Embed, marker: string): string | undefined {
+    const match = findMarkerField(embed, marker).value.match(/<@(\d+)>/);
     return match?.[1];
 }
 
 function withFieldValue(embed: Embed, marker: string, value: string): EmbedBuilder {
+    findMarkerField(embed, marker);
     const updatedFields = embed.fields.map(field =>
         field.name.startsWith(marker) ? { ...field, value } : field
     );
@@ -110,94 +122,125 @@ function resolveLocale(guildId: string | null): Locale {
     return (guildId && getGuildLocale(guildId)) || "en";
 }
 
+// Serializes claim/release/complete/cancel for the same order message within
+// this process, and every handler re-fetches the message inside the lock
+// instead of trusting the (possibly stale) snapshot attached to the
+// interaction — closes the race where two near-simultaneous clicks (e.g. two
+// people claiming at once) both act on the same "before" state.
+const orderLocks = new Map<string, Promise<unknown>>();
+
+function withOrderLock<T>(messageId: string, fn: () => Promise<T>): Promise<T> {
+    const previous = orderLocks.get(messageId) ?? Promise.resolve();
+    const next = previous.then(fn, fn);
+    orderLocks.set(messageId, next.then(() => {}, () => {}));
+    return next;
+}
+
 export async function handleClaimButton(interaction: ButtonInteraction) {
-    const embedData = interaction.message.embeds[0];
-    if (!embedData) return;
+    await withOrderLock(interaction.message.id, async () => {
+        const message = await interaction.message.fetch();
+        const embedData = message.embeds[0];
+        if (!embedData) return;
 
-    const locale = resolveLocale(interaction.guildId);
-    const requesterId = extractUserId(embedData, REQUESTER_MARKER);
+        const locale = resolveLocale(interaction.guildId);
+        const requesterId = extractUserId(embedData, REQUESTER_MARKER);
 
-    if (interaction.user.id === requesterId) {
-        await interaction.reply({ content: order.cannotClaimOwn[locale], flags: MessageFlags.Ephemeral });
-        return;
-    }
+        if (interaction.user.id === requesterId) {
+            await interaction.reply({ content: order.cannotClaimOwn[locale], flags: MessageFlags.Ephemeral });
+            return;
+        }
 
-    const embed = withFieldValue(embedData, CRAFTER_MARKER, `<@${interaction.user.id}>`);
+        if (extractUserId(embedData, CRAFTER_MARKER)) {
+            await interaction.reply({ content: order.alreadyClaimed[locale], flags: MessageFlags.Ephemeral });
+            return;
+        }
 
-    await interaction.update({
-        embeds: [embed],
-        components: [buildCompleteReleaseCancelRow(locale)],
+        const embed = withFieldValue(embedData, CRAFTER_MARKER, `<@${interaction.user.id}>`);
+
+        await interaction.update({
+            embeds: [embed],
+            components: [buildCompleteReleaseCancelRow(locale)],
+        });
+
+        if (interaction.channel?.isThread()) {
+            await renameThreadIcon(interaction.channel, CRAFTER_MARKER);
+        }
     });
-
-    if (interaction.channel?.isThread()) {
-        await renameThreadIcon(interaction.channel, CRAFTER_MARKER);
-    }
 }
 
 export async function handleReleaseButton(interaction: ButtonInteraction) {
-    const embedData = interaction.message.embeds[0];
-    if (!embedData) return;
+    await withOrderLock(interaction.message.id, async () => {
+        const message = await interaction.message.fetch();
+        const embedData = message.embeds[0];
+        if (!embedData) return;
 
-    const locale = resolveLocale(interaction.guildId);
-    const executorId = extractUserId(embedData, CRAFTER_MARKER);
+        const locale = resolveLocale(interaction.guildId);
+        const executorId = extractUserId(embedData, CRAFTER_MARKER);
 
-    if (interaction.user.id !== executorId) {
-        await interaction.reply({ content: order.onlyExecutorCanRelease[locale], flags: MessageFlags.Ephemeral });
-        return;
-    }
+        if (interaction.user.id !== executorId) {
+            await interaction.reply({ content: order.onlyExecutorCanRelease[locale], flags: MessageFlags.Ephemeral });
+            return;
+        }
 
-    const embed = withFieldValue(embedData, CRAFTER_MARKER, UNCLAIMED_VALUE);
+        const embed = withFieldValue(embedData, CRAFTER_MARKER, UNCLAIMED_VALUE);
 
-    await interaction.update({
-        embeds: [embed],
-        components: [buildClaimCancelRow(locale)],
+        await interaction.update({
+            embeds: [embed],
+            components: [buildClaimCancelRow(locale)],
+        });
+
+        if (interaction.channel?.isThread()) {
+            await renameThreadIcon(interaction.channel, "❔");
+        }
     });
-
-    if (interaction.channel?.isThread()) {
-        await renameThreadIcon(interaction.channel, "❔");
-    }
 }
 
 export async function handleCompleteButton(interaction: ButtonInteraction) {
-    const embedData = interaction.message.embeds[0];
-    if (!embedData) return;
+    await withOrderLock(interaction.message.id, async () => {
+        const message = await interaction.message.fetch();
+        const embedData = message.embeds[0];
+        if (!embedData) return;
 
-    const locale = resolveLocale(interaction.guildId);
-    const executorId = extractUserId(embedData, CRAFTER_MARKER);
+        const locale = resolveLocale(interaction.guildId);
+        const executorId = extractUserId(embedData, CRAFTER_MARKER);
 
-    if (interaction.user.id !== executorId) {
-        await interaction.reply({ content: order.onlyExecutorCanComplete[locale], flags: MessageFlags.Ephemeral });
-        return;
-    }
+        if (interaction.user.id !== executorId) {
+            await interaction.reply({ content: order.onlyExecutorCanComplete[locale], flags: MessageFlags.Ephemeral });
+            return;
+        }
 
-    await interaction.update({ components: [] });
+        await interaction.update({ components: [] });
 
-    if (interaction.channel?.isThread()) {
-        const thread = interaction.channel;
-        await thread.setLocked(true);
-        await thread.setAutoArchiveDuration(ThreadAutoArchiveDuration.OneHour);
-        await thread.send(order.completedBy[locale](interaction.user.id));
-        await renameThreadIcon(thread, "✅");
-    }
+        if (interaction.channel?.isThread()) {
+            const thread = interaction.channel;
+            await thread.setLocked(true);
+            await thread.setAutoArchiveDuration(ThreadAutoArchiveDuration.OneHour);
+            await thread.send(order.completedBy[locale](interaction.user.id));
+            await renameThreadIcon(thread, "✅");
+        }
+    });
 }
 
 export async function handleCancelButton(interaction: ButtonInteraction) {
-    const embedData = interaction.message.embeds[0];
-    if (!embedData) return;
+    await withOrderLock(interaction.message.id, async () => {
+        const message = await interaction.message.fetch();
+        const embedData = message.embeds[0];
+        if (!embedData) return;
 
-    const locale = resolveLocale(interaction.guildId);
-    const requesterId = extractUserId(embedData, REQUESTER_MARKER);
+        const locale = resolveLocale(interaction.guildId);
+        const requesterId = extractUserId(embedData, REQUESTER_MARKER);
 
-    if (interaction.user.id !== requesterId) {
-        await interaction.reply({ content: order.onlyRequesterCanCancel[locale], flags: MessageFlags.Ephemeral });
-        return;
-    }
+        if (interaction.user.id !== requesterId) {
+            await interaction.reply({ content: order.onlyRequesterCanCancel[locale], flags: MessageFlags.Ephemeral });
+            return;
+        }
 
-    await interaction.deferUpdate();
+        await interaction.deferUpdate();
 
-    if (interaction.channel?.isThread()) {
-        await interaction.channel.delete("Craftcord order cancelled");
-    }
+        if (interaction.channel?.isThread()) {
+            await interaction.channel.delete("Craftcord order cancelled");
+        }
+    });
 }
 
 export function buildCraftingChannelInfoEmbed(locale: Locale): EmbedBuilder {

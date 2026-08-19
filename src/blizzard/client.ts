@@ -3,7 +3,7 @@ import {BLIZZARD_API_HOST, BLIZZARD_NAMESPACE, BLIZZARD_TOKEN_URL} from "./const
 import {ProfessionIndexResponse, ProfessionSkillTierResponse, RecipeResponse, MediaResponse} from "./types";
 import {ProfessionDetailResponse} from "./types";
 import {toLocalizedText} from "./localization";
-import {EXCLUDED_REAGENT_SLOT_NAMES} from "../reagentSlots";
+import {EXCLUDED_REAGENT_SLOT_NAMES} from "../catalog/reagentSlots";
 
 export async function getAccessToken(): Promise<string> {
     console.log("[Blizzard] Fetch access token...");

@@ -1,6 +1,6 @@
 import { getAccessToken, getProfessionDetails, getProfessionForSkillTier, getProfessionsBasic, getRecipeDetails } from "../blizzard/client.js";
-import { RELEVANT_PROFESSION_IDS } from "../professions.js";
-import { isExcludedCategory } from "../excludedCategories.js";
+import { RELEVANT_PROFESSION_IDS } from "../catalog/professions.js";
+import { isExcludedCategory } from "../catalog/excludedCategories.js";
 import { writeFileSync, mkdirSync } from "node:fs";
 
 function getCurrentSkillTier(skillTiers: { id: number; name: { de: string; en: string } }[]) {

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import type { Locale } from "./guildConfig.js";
+import type { Locale } from "../guildConfig.js";
 
 export interface CatalogReagent {
     id: number;
