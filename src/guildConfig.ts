@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import type { Locale } from "./i18n/locales.js";
 
-export type Locale = "de" | "en";
+export type { Locale };
 
 interface GuildConfig {
     locale: Locale;
