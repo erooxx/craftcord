@@ -27,7 +27,7 @@ const UNCLAIMED_VALUE = "—";
 const BLANK_FIELD = { name: "​", value: "​", inline: true };
 
 const requestedByLabels = { de: "Angefragt von", en: "Requested by" };
-const crafterLabels = { de: "Handwerker:in", en: "Crafter" };
+const crafterLabels = { de: "Crafter", en: "Crafter" };
 const qualityLabels = { de: "Qualität", en: "Quality" };
 const urgencyLabels = { de: "Dringlichkeit", en: "Urgency" };
 const reagentsLabels = { de: "Reagenzien", en: "Reagents" };

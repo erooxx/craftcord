@@ -6,7 +6,7 @@ Craftcord ("the bot") is a Discord bot that organizes crafting requests in guild
 
 ## What we store
 
-For every Discord server (guild) the bot is set up in via `/setup`, we store a small configuration file containing:
+For every Discord server (guild) the bot is set up via `/setup`, we store a small configuration file containing:
 
 - The language you chose (German or English)
 - The Discord role ID assigned to each in-game profession

@@ -10,7 +10,7 @@
   },
   "keywords": [],
   "author": "erooxx",
-  "license": "ISC",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "dependencies": {
     "discord.js": "^14.27.0",

@@ -103,17 +103,59 @@ client.on(Events.InteractionCreate, async (interaction) => {
             return;
         }
 
-        const welcomeChannel = interaction.guild.channels.cache.find(
+        const guild = interaction.guild;
+
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+        const welcomeChannel = guild.channels.cache.find(
             c => c.type === ChannelType.GuildText && c.name === "welcome"
         );
 
-        if (!welcomeChannel || welcomeChannel.type !== ChannelType.GuildText) {
-            await interaction.reply({ content: "No #welcome channel found.", flags: MessageFlags.Ephemeral });
+        if (welcomeChannel && welcomeChannel.type === ChannelType.GuildText) {
+            await welcomeChannel.send({ embeds: [buildWelcomeEmbed(guild)] });
+            await interaction.editReply({ content: `Posted in ${welcomeChannel}.` });
             return;
         }
 
-        await welcomeChannel.send({ embeds: [buildWelcomeEmbed(interaction.guild)] });
-        await interaction.reply({ content: `Posted in ${welcomeChannel}.`, flags: MessageFlags.Ephemeral });
+        const pickerRow = new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
+            new ChannelSelectMenuBuilder()
+                .setCustomId("postwelcome_channel_picker")
+                .setChannelTypes(ChannelType.GuildText)
+                .setPlaceholder("No #welcome channel found — pick one"),
+        );
+
+        const pickerMessage = await interaction.editReply({
+            content: "No #welcome channel found. Which channel should I post in?",
+            components: [pickerRow],
+        });
+
+        const postWelcomePickerCollector = pickerMessage.createMessageComponentCollector({
+            componentType: ComponentType.ChannelSelect,
+            filter: (i) => i.user.id === interaction.user.id,
+            time: 60_000,
+            max: 1,
+        });
+
+        postWelcomePickerCollector.on("collect", async (pickerInteraction) => {
+            await pickerInteraction.deferUpdate();
+
+            const channelId = pickerInteraction.values[0];
+            const chosenChannel = await guild.channels.fetch(channelId);
+
+            if (!chosenChannel || chosenChannel.type !== ChannelType.GuildText) {
+                await pickerInteraction.editReply({ content: "Invalid channel.", components: [] });
+                return;
+            }
+
+            await chosenChannel.send({ embeds: [buildWelcomeEmbed(guild)] });
+            await pickerInteraction.editReply({ content: `Posted in ${chosenChannel}.`, components: [] });
+        });
+
+        postWelcomePickerCollector.on("end", (collected) => {
+            if (collected.size === 0) {
+                interaction.editReply({ content: "Timed out, please run /postwelcome again.", components: [] });
+            }
+        });
     }
 
     if(interaction.commandName === "setup") {
