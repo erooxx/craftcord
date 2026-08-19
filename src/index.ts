@@ -39,7 +39,7 @@ import {
     RELEASE_BUTTON_ID,
     CANCEL_BUTTON_ID,
 } from "./craftOrder.js";
-import { buildWelcomeEmbed } from "./welcomeMessage.js";
+import { buildWelcomeEmbed, buildLogoAttachment } from "./welcomeMessage.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
 
@@ -112,7 +112,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         );
 
         if (welcomeChannel && welcomeChannel.type === ChannelType.GuildText) {
-            await welcomeChannel.send({ embeds: [buildWelcomeEmbed(guild)] });
+            await welcomeChannel.send({ embeds: [buildWelcomeEmbed(guild)], files: [buildLogoAttachment()] });
             await interaction.editReply({ content: `Posted in ${welcomeChannel}.` });
             return;
         }
@@ -147,7 +147,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 return;
             }
 
-            await chosenChannel.send({ embeds: [buildWelcomeEmbed(guild)] });
+            await chosenChannel.send({ embeds: [buildWelcomeEmbed(guild)], files: [buildLogoAttachment()] });
             await pickerInteraction.editReply({ content: `Posted in ${chosenChannel}.`, components: [] });
         });
 
