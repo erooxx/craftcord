@@ -1,8 +1,15 @@
-import { EmbedBuilder, Guild, ChannelType } from "discord.js";
+import { EmbedBuilder, Guild, ChannelType, AttachmentBuilder } from "discord.js";
 import { LINKS } from "./links.js";
+
+const LOGO_FILENAME = "craftcord_logo.png";
+const LOGO_PATH = `assets/${LOGO_FILENAME}`;
 
 function findTextChannel(guild: Guild, name: string) {
     return guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.name === name);
+}
+
+export function buildLogoAttachment(): AttachmentBuilder {
+    return new AttachmentBuilder(LOGO_PATH, { name: LOGO_FILENAME });
 }
 
 export function buildWelcomeEmbed(guild: Guild): EmbedBuilder {
@@ -12,6 +19,7 @@ export function buildWelcomeEmbed(guild: Guild): EmbedBuilder {
 
     return new EmbedBuilder()
         .setTitle("👋 Welcome to Craftcord!")
+        .setThumbnail(`attachment://${LOGO_FILENAME}`)
         .setColor(0x5865f2)
         .setDescription(
             "Craftcord organizes crafting requests in World of Warcraft guilds. " +
