@@ -169,7 +169,8 @@ export async function handleSetup(interaction: ChatInputCommandInteraction) {
     await localeChoice.update({ content: text.setup.checkingRoles[locale], components: [] });
 
     const catalog = loadRecipeCatalog();
-    const { matched, missing } = await matchProfessionRoles(guild, catalog, locale);
+    const { matched, missing, renameFailed } = await matchProfessionRoles(guild, catalog, locale);
+    const hierarchyHint = renameFailed ? `\n${text.setup.roleHierarchyHint[locale]}` : "";
 
     if (missing.length === 0) {
         await saveGuildProfessionRoles(guildId, Object.fromEntries(matched));
@@ -177,7 +178,7 @@ export async function handleSetup(interaction: ChatInputCommandInteraction) {
             localeChoice,
             guild,
             locale,
-            `${text.setup.localeConfirmation[locale]}\n${text.setup.allRolesFound[locale](catalog.length)}`,
+            `${text.setup.localeConfirmation[locale]}\n${text.setup.allRolesFound[locale](catalog.length)}${hierarchyHint}`,
             userId,
         );
         return;
@@ -191,7 +192,7 @@ export async function handleSetup(interaction: ChatInputCommandInteraction) {
     );
 
     const confirmMessage = await localeChoice.editReply({
-        content: `${text.setup.localeConfirmation[locale]}\n${text.setup.rolePrompt[locale](matched.size, catalog.length, missingNames)}`,
+        content: `${text.setup.localeConfirmation[locale]}\n${text.setup.rolePrompt[locale](matched.size, catalog.length, missingNames)}${hierarchyHint}`,
         components: [confirmRow],
     });
 
@@ -205,7 +206,7 @@ export async function handleSetup(interaction: ChatInputCommandInteraction) {
 
     if (!createRoles) {
         await saveGuildProfessionRoles(guildId, Object.fromEntries(matched));
-        const skippedText = `${text.setup.localeConfirmation[locale]}\n${text.setup.rolesSkipped[locale](matched.size, catalog.length)}`;
+        const skippedText = `${text.setup.localeConfirmation[locale]}\n${text.setup.rolesSkipped[locale](matched.size, catalog.length)}${hierarchyHint}`;
         await confirmChoice.update({ content: skippedText, components: [] });
         await promptChannelSetup(confirmChoice, guild, locale, skippedText, userId);
         return;
@@ -221,6 +222,6 @@ export async function handleSetup(interaction: ChatInputCommandInteraction) {
         );
     });
 
-    const createdText = `${text.setup.localeConfirmation[locale]}\n${text.setup.rolesCreated[locale](created.size, allRolesSoFar.size)}`;
+    const createdText = `${text.setup.localeConfirmation[locale]}\n${text.setup.rolesCreated[locale](created.size, allRolesSoFar.size)}${hierarchyHint}`;
     await promptChannelSetup(confirmChoice, guild, locale, createdText, userId);
 }

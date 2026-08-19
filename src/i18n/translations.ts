@@ -56,6 +56,11 @@ export const text = {
             en: (found: number, total: number) => `${found}/${total} roles found, no new roles were created.`,
         },
 
+        roleHierarchyHint: {
+            de: "⚠️ Ich konnte einige bestehende Rollen nicht umbenennen — meine Rolle muss in den Server-Einstellungen → Rollen über euren Berufsrollen stehen, damit ich sie bearbeiten kann.",
+            en: "⚠️ I couldn't rename some existing roles — my role needs to be positioned above your profession roles in Server Settings → Roles for me to edit them.",
+        },
+
         confirmCreateRolesButton: { de: "Ja, erstellen", en: "Yes, create" },
         declineCreateRolesButton: { de: "Nein", en: "No" },
 

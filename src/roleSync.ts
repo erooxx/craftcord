@@ -7,13 +7,14 @@ export async function matchProfessionRoles(
     guild: Guild,
     professions: CatalogProfession[],
     locale: Locale
-): Promise<{ matched: Map<number, string>; missing: CatalogProfession[] }> {
+): Promise<{ matched: Map<number, string>; missing: CatalogProfession[]; renameFailed: boolean }> {
     const guildRoles = await guild.roles.fetch();
 
     const rolesByLowercaseName = new Map(guildRoles.map(role => [role.name.toLowerCase(), role]));
 
     const matched = new Map<number, string>();
     const missing: CatalogProfession[] = [];
+    let renameFailed = false;
 
     for (const profession of professions) {
         const role = rolesByLowercaseName.get(profession.name.de.toLowerCase())
@@ -33,6 +34,7 @@ export async function matchProfessionRoles(
                     await role.setName(targetName, "Craftcord Setup – locale changed");
                 } catch (error) {
                     console.error(`Failed to rename role ${role.id} in guild ${guild.id}:`, error);
+                    renameFailed = true;
                 }
             }
         } else {
@@ -40,7 +42,7 @@ export async function matchProfessionRoles(
         }
     }
 
-    return { matched, missing };
+    return { matched, missing, renameFailed };
 }
 
 export async function createMissingRoles(
