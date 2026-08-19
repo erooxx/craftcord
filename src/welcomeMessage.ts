@@ -17,12 +17,10 @@ export function buildLogoAttachment(): AttachmentBuilder {
 
 export function buildWelcomeEmbed(guild: Guild): EmbedBuilder {
     const questionsChannel = findTextChannel(guild, "questions");
-    const guideChannel = findTextChannel(guild, "server-anleitung");
 
     const announcements = `<#${ANNOUNCEMENTS_CHANNEL_ID}>`;
     const supportForum = `<#${SUPPORT_FORUM_CHANNEL_ID}>`;
     const questions = questionsChannel ? `${questionsChannel}` : "#questions";
-    const guide = guideChannel ? `${guideChannel}` : "#server-anleitung";
 
     return new EmbedBuilder()
         .setTitle("👋 Welcome to Craftcord!")
@@ -48,7 +46,9 @@ export function buildWelcomeEmbed(guild: Guild): EmbedBuilder {
             },
             {
                 name: "📖 More info",
-                value: `Check out ${guide} for a full walkthrough.`,
+                value: "Check out <id:guide> for a full walkthrough — you'll also find our Privacy Policy and Terms of Service there.\n" +
+                    "Want to change your onboarding answers later? Head to <id:customize>.\n" +
+                    "Manage which channels you see in <id:browse>.",
             },
             {
                 name: "🔗 Links",
